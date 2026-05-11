@@ -5,13 +5,30 @@ const data2 = [
 ]
 class Ntree extends Array {
     static #CUTOFF = 65535;
+    static UINT8 = class extends Uint8Array {
+        #l;
+        constructor(buffer, l) {
+            super(buffer);
+            this.#l = l;
+        }
+        get(index) {
+            for (let i = index; i < this.length; i++) {
+                //this.length vs super.length
+                //this needs to return a [x,y,z,.......]
+            }
+        }
+        get trueLength() {
+            return (super.length / 2);
+        }
+        get length() {
+            return this.trueLength / this.#l;
+        }
+    }
     #data;
-    #query;
     constructor(data) {
         if (!data.every(e => e.every(Number.isInteger))) throw new Error("Invalid input!")
         super(...data);
         this.#data = this.#convert(data);
-        this.#query
     }
     set set(data) {
         this.length = 0;
@@ -23,7 +40,7 @@ class Ntree extends Array {
         const l = payload[0].length;
         if (!payload.every(e => e.length === l)) throw new Error("Inequal lengths");
         const basis = payload.flat();
-        const modded = new Uint8Array(basis.length * 2);
+        const modded = new Ntree.UINT8(basis.length * 2, l)
         for (let i = 0, j = 0; i < basis.length; i++, j+= 2) {
             if (basis[i] > Ntree.#CUTOFF) throw new Error(`${basis[i]} is greater than ${Ntree.#CUTOFF}`)
             const [low, high] = [basis[i] & 255, basis[i] >> 8]
@@ -33,8 +50,7 @@ class Ntree extends Array {
         return modded;
     }
     search(q, set = this.#data) {
-        const input = this.#convert([q]);
-        alert(input)
+        
     }
     static get [Symbol.species]() {
         return Array;
