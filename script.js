@@ -4,13 +4,14 @@ const data2 = [
     [3,4,5]
 ]
 class Ntree extends Array {
-    #cutoff;
+    static #CUTOFF = 65535;
     #data;
+    #query;
     constructor(data) {
         if (!data.every(e => e.every(Number.isInteger))) throw new Error("Invalid input!")
         super(...data);
-        this.#cutoff = 65535;
         this.#data = this.#convert(data);
+        this.#query
     }
     set set(data) {
         this.length = 0;
@@ -24,12 +25,16 @@ class Ntree extends Array {
         const basis = payload.flat();
         const modded = new Uint8Array(basis.length * 2);
         for (let i = 0, j = 0; i < basis.length; i++, j+= 2) {
-            if (basis[i] > this.#cutoff) throw new Error(`${basis[i]} is greater than ${this.#cutoff}`)
+            if (basis[i] > Ntree.#CUTOFF) throw new Error(`${basis[i]} is greater than ${Ntree.#CUTOFF}`)
             const [low, high] = [basis[i] & 255, basis[i] >> 8]
             modded[j] = low;
             modded[j + 1] = high;
         }
         return modded;
+    }
+    search(q, set = this.#data) {
+        const input = this.#convert([q]);
+        alert(input)
     }
     static get [Symbol.species]() {
         return Array;
@@ -37,3 +42,4 @@ class Ntree extends Array {
 }
 
 const test = new Ntree(data);
+test.search([0,0,0])
