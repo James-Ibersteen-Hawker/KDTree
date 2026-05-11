@@ -12,9 +12,15 @@ class Ntree extends Array {
             this.#l = l;
         }
         get(index) {
-            for (let i = index; i < this.length; i++) {
+            for (let i = index * 2; i < super.length; i += (this.#l * 2)) {
+                const view = this.slice(i, i + (this.#l * 2))
+                for (let d = 0; d < view.length; d += 2);
+                // const num = this[i];
+                // const mul = this[i + 1];
+                // if (num === null || mul === null) throw new Error(`${index} doesn't exist in ${this}`);
                 //this.length vs super.length
                 //this needs to return a [x,y,z,.......]
+
             }
         }
         get trueLength() {
