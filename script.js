@@ -1,101 +1,73 @@
 import { data } from "./data.js"
-class Ntree extends Array {
-    static #CUTOFF = 65535;
-    static UINT8 = class extends Uint8Array {
-        #l;
-        constructor(buffer, l) {
-            super(buffer);
-            this.#l = l;
-        }
-        get(index) {
-            const unit = this.#l * 2;
-            const start = index * unit;
-            const end = start + unit;
-            if (end > super.length || start < 0) return null;
-            const result = new Array(this.#l);
-            for (let d = start, r = 0; d < end; d += 2, r++) {
-                result[r] = this[d] + (this[d + 1] << 8);
-            }
-            return result;
-        }
-        get length() {
-            return (super.length / 2) / this.#l;
-        }
-        static get [Symbol.species]() {
-            return Uint8Array;
-        }
-    }
+try {
+class KDTree {
     #data;
+    #length;
+    #tree;
+    static #dedupe(data) {
+        const set = new Set();
+        const payload = [];
+        for (const row of data) {
+            const key = row.join(",");
+            if (!set.has(key)) {
+                set.add(key);
+                payload.push(row);
+            }
+        }
+        return payload;
+    }
+    static Branch = class {
+        constructor(pivot, axis) {
+            this.pivot = pivot
+            this.axis = axis;
+            this.setR = null;
+            this.setL = null;
+            this.boundsR = null;
+            this.boundsL = null;
+        }
+    }
     constructor(data) {
-        if (!data.every(e => e.every(Number.isInteger))) throw new Error("Invalid input!")
-        super(...data);
-        this.#data = this.#convert(data);
+        this.#init(data);
     }
-    set set(data) {
-        this.length = 0;
-        this.push(...data);
-        this.#data = this.#convert(data);
-    }
-    #convert(data) {
-        const map = new Map();
-        for (const row of data) map.set(row.join(","), row);
-        const payload = [...map.values()]
-        const l = payload[0].length;
-        if (!payload.every(e => e.length === l)) throw new Error("Inequal lengths");
-        const basis = payload.flat();
-        const modded = new Ntree.UINT8(basis.length * 2, l)
-        for (let i = 0, j = 0; i < basis.length; i++, j += 2) {
-            if (basis[i] > Ntree.#CUTOFF) throw new Error(`${basis[i]} is greater than ${Ntree.#CUTOFF}`)
-            const [low, high] = [basis[i] & 255, basis[i] >> 8]
-            modded[j] = low;
-            modded[j + 1] = high;
+    get data() { return this.#data.map(row => [...row]) }
+    #init(data) {
+        if (!data || !Array.isArray(data) || data.length === 0) throw new Error("Invalid Input")
+        this.#length = data[0]?.length;
+        if (!this.#length) throw new Error("Invalid length");
+        if (!data.every(e => Array.isArray(e) && e.length === this.#length)) {
+            throw new Error("Inconsistent lengths");
         }
-        return modded;
+        this.#data = KDTree.#dedupe(data);
+        this.#tree = this.#assemble(this.#data, 0);
+        alert(JSON.stringify(this.#tree))
     }
-    static get [Symbol.species]() {
-        return Array;
+    #assemble(set, axis) {
+        if (set.length < 5) return set;
+        const newAxis = (axis + 1) % this.#length;
+        const sorted = [...set].sort((a, b) => a[axis] - b[axis]);
+        const mid = Math.floor((sorted.length) / 2);
+        const pivot = sorted[mid];
+        const branch = new KDTree.Branch(pivot, axis)
+        branch.boundsR = [sorted[mid + 1], sorted.at(-1)];
+        branch.boundsL = [sorted[0], sorted[mid - 1]];
+        const setR = this.#assemble(sorted.slice(mid + 1), newAxis);
+        const setL = this.#assemble(sorted.slice(0, mid - 1), newAxis);
+        branch.setR = setR;
+        branch.setL = setL;
+        return branch;
     }
-    search(q, set = this.#data) {
-        const data = [];
-        for (let i = 0; i < set.length; i++) data.push(set.get(i))
-        console.log(data)
-        if (set.length === 1) return set.get(0)
-        const start = set.get(0);
-        if (q.length !== start.length) throw new Error("Inequal lengths");
-        const end = set.get(set.length - 1);
-        const qplace = new Array(q.length);
-        const mids = new Array(q.length);
-        for (let i = 0; i < start.length; i++) {
-            mids[i] = (start[i] + end[i]) / 2;
-            qplace[i] = q[i] < mids[i] ? 0 : 1;
-        }
-        const slice = [];
-        iterator: for (let i = 0; i < set.length; i++) {
-            const cur = set.get(i);
-            const place = new Array(cur.length);
-            for (let d = 0; d < cur.length; d++) {
-                if (cur[d] > mids[d]) place[d] = 1;
-                else place[d] = 0;
-                if (qplace[d] !== place[d]) continue iterator;
-            }
-            slice.push(cur);
-        }
-        if (slice.length === 0) {
-            let [best, bestp] = [Infinity, null];
-            for (let i = 0; i < set.length; i++) {
-                const dist = this.#distance(set.get(i), q);
-                if (dist < best) [best, bestp] = [dist, set.get(i)];
-            }
-            return bestp;
-        }
-        return this.search(q, this.#convert(slice));
+    clear() {
+        this.#data = null;
+        this.#tree = null;
+        this.#length = null;
+        return this;
     }
-    #distance(p1, p2) {
-        return Math.sqrt(p1.reduce((acc, v, i) => acc + (v - p2[i]) ** 2, 0));
+    newSet(data) {
+        this.#init(data);
+        return this;
     }
 }
-
-const test = new Ntree(data);
-const result = test.search([395, 358, 317])
-console.log(result);
-alert(result)
+const test = new KDTree(data);
+} catch (e) {
+    alert(e)
+}
