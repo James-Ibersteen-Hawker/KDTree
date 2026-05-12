@@ -16,6 +16,9 @@ class KDTree {
         }
         return payload;
     }
+    static distance(p1, p2) {
+        return p1.reduce((acc, v, i) => acc + (v - p2[i])**2, 0)
+    }
     static Branch = class {
         constructor(pivot, axis) {
             this.pivot = pivot
