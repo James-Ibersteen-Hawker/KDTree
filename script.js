@@ -4,75 +4,87 @@ class KDTree {
     #data;
     #length;
     #tree;
+    #map;
     static #dedupe(data) {
         const set = new Set();
         const payload = [];
-        for (const row of data) {
-            const key = row.join(",");
-            if (!set.has(key)) {
-                set.add(key);
-                payload.push(row);
-            }
+        for (const point of data) {
+            const key = KDTree.encode(point);
+            if (!set.has(key)) set.add(key), payload.push(point);
         }
         return payload;
     }
-    static distance(p1, p2) {
-        return p1.reduce((acc, v, i) => acc + (v - p2[i])**2, 0)
-    }
+    static encode(point) { return point.join("|") }
+    static distance = (p1, p2) => p1.reduce((acc, v, i) => acc + (v - p2[i])**2, 0);
     static Branch = class {
-        constructor(pivot, axis) {
+        constructor(pivot, axis, boundsL, boundsR, setL, setR) {
             this.pivot = pivot
             this.axis = axis;
-            this.setR = null;
-            this.setL = null;
-            this.boundsR = null;
-            this.boundsL = null;
+            this.setL = setL;
+            this.setR = setR;
+            this.boundsL = boundsL;
+            this.boundsR = boundsR;
         }
     }
-    constructor(data) {
-        this.#init(data);
-    }
+    constructor(data) { this.#init(data) };
     get data() { return this.#data.map(row => [...row]) }
     #init(data) {
         if (!data || !Array.isArray(data) || data.length === 0) throw new Error("Invalid Input")
         this.#length = data[0]?.length;
         if (!this.#length) throw new Error("Invalid length");
-        if (!data.every(e => Array.isArray(e) && e.length === this.#length)) {
-            throw new Error("Inconsistent lengths");
-        }
+        if (!data.every(e => Array.isArray(e) && e.length === this.#length)) throw new Error("Inconsistent lengths");
         this.#data = KDTree.#dedupe(data);
-        this.#tree = this.#assemble(this.#data, 0);
+        this.#buildMap(this.#data);
+        this.#tree = this.#assemble([...this.#data], 0);
+        document.getElementById("test").textContent = JSON.stringify(this.#tree)
+    }
+    #buildMap(data) {
+        this.#map = new Map();
+        for (let i = 0; i < data.length; i++) this.#map.set(KDTree.encode(data[i]), i)
     }
     #assemble(set, axis) {
-        if (set.length < 5) return set;
-        const newAxis = (axis + 1) % this.#length;
-        const sorted = [...set].sort((a, b) => a[axis] - b[axis]);
-        const mid = Math.floor((sorted.length) / 2);
-        const pivot = sorted[mid];
-        const branch = new KDTree.Branch(pivot, axis)
-        branch.boundsR = [sorted[mid + 1], sorted.at(-1)];
-        branch.boundsL = [sorted[0], sorted[mid - 1]];
-        const setR = this.#assemble(sorted.slice(mid + 1), newAxis);
-        const setL = this.#assemble(sorted.slice(0, mid), newAxis);
-        branch.setR = setR;
-        branch.setL = setL;
-        return branch;
+        if (set.length < 8) return Uint32Array.from(set, e => this.#map.get(KDTree.encode(e)));
+        const NAxis = (axis + 1) % this.#length;
+        set.sort((a, b) => a[axis] - b[axis]);
+        const mid = set.length >> 1;
+        const pivot = set[mid];
+        const boundsL = new Uint32Array([
+            this.#map.get(KDTree.encode(set[0])),
+            this.#map.get(KDTree.encode(set[mid - 1])),
+        ]);
+        const boundsR = new Uint32Array([
+            this.#map.get(KDTree.encode(set[mid + 1])),
+            this.#map.get(KDTree.encode(set[set.length - 1])),
+        ]); //max is 4294967295;
+        const PIDX = this.#map.get(KDTree.encode(pivot));
+        const setR = this.#assemble(set.slice(mid + 1), NAxis);
+        const setL = this.#assemble(set.slice(0, mid), NAxis);
+        return new KDTree.Branch(PIDX, axis, boundsL, boundsR, setL, setR)
     }
     clear() {
         this.#data = null;
         this.#tree = null;
         this.#length = null;
+        this.#map = null;
         return this;
     }
     newSet(data) {
         this.#init(data);
         return this;
     }
-    search(q, set = this.#tree) {
+    search(q, branch = this.#tree) {
         if (!this.#tree) throw new Error("No tree");
+        if (branch instanceof Uint32Array) {
+            return branch;
+        }
+        const pivot = this.#data[branch.pivot];
+        const axis = branch.axis;
+        const side = q[axis] < pivot[axis] ? branch.setL : branch.setR;
+        const result = this.search(q, side);
     }
 }
 const test = new KDTree(data);
+test.search([0,0,0])
 } catch (e) {
     alert(e)
 }
