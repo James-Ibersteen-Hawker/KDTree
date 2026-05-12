@@ -26,6 +26,20 @@ class KDTree {
             this.boundsR = boundsR;
         }
     }
+    static INT32 = class extends Int32Array {
+        constructor(data, unitLength) {
+            super(data);
+            this.UL = unitLength;
+        }
+        index(i) {
+            const start = i * this.UL;
+            const end = start + this.UL;
+            if (end > this.length) throw new Error("Index exceeds bounds");
+            const output = new Array(this.UL);
+            for (let q = start; q < end; q++) output[q - start] = this[q];
+            return output;
+        }
+    }
     constructor(data) { this.#init(data) };
     get data() { return this.#data.map(row => [...row]) }
     #init(data) {
