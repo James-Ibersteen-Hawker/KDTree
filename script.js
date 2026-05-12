@@ -39,7 +39,6 @@ class KDTree {
         }
         this.#data = KDTree.#dedupe(data);
         this.#tree = this.#assemble(this.#data, 0);
-        alert(JSON.stringify(this.#tree))
     }
     #assemble(set, axis) {
         if (set.length < 5) return set;
@@ -51,7 +50,7 @@ class KDTree {
         branch.boundsR = [sorted[mid + 1], sorted.at(-1)];
         branch.boundsL = [sorted[0], sorted[mid - 1]];
         const setR = this.#assemble(sorted.slice(mid + 1), newAxis);
-        const setL = this.#assemble(sorted.slice(0, mid - 1), newAxis);
+        const setL = this.#assemble(sorted.slice(0, mid), newAxis);
         branch.setR = setR;
         branch.setL = setL;
         return branch;
@@ -65,6 +64,9 @@ class KDTree {
     newSet(data) {
         this.#init(data);
         return this;
+    }
+    search(q, set = this.#tree) {
+        if (!this.#tree) throw new Error("No tree");
     }
 }
 const test = new KDTree(data);
