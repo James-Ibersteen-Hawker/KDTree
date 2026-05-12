@@ -72,19 +72,34 @@ class KDTree {
         this.#init(data);
         return this;
     }
-    search(q, branch = this.#tree) {
+    search(q, branch = this.#tree, bestL, bestP) {
         if (!this.#tree) throw new Error("No tree");
         if (branch instanceof Uint32Array) {
-            return branch;
+            return this.#closest(branch, q);
         }
         const pivot = this.#data[branch.pivot];
         const axis = branch.axis;
         const side = q[axis] < pivot[axis] ? branch.setL : branch.setR;
         const result = this.search(q, side);
+        return result;
+    }
+    #closest(list, q) {
+        let best = Infinity;
+        let bestp = null;
+        for (let i = 0; i < list.length; i++) {
+            const point = this.#data[list[i]];
+            const D = KDTree.distance(point, q);
+            if (D < best) {
+                best = D;
+                bestp = point;
+            }
+        }
+        return bestp;
     }
 }
 const test = new KDTree(data);
-test.search([0,0,0])
+const result = test.search([0,0,0])
+alert(result)
 } catch (e) {
     alert(e)
 }
