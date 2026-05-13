@@ -5,7 +5,7 @@ function fold(view) {
     const fnv1aPrime = 16777619;
     for (let i = 0; i < view.length; i++) {
         hash ^= view[i];
-        hash = imul(hash, fnv1aPrime);
+        hash = Math.imul(hash, fnv1aPrime);
     }
     return hash >>> 0;
 }
@@ -74,9 +74,7 @@ export class KDTree {
     #length;
     #tree;
     #indexes;
-    constructor(data) {
-        // this.#init(data)
-    };
+    constructor(data) { this.#init(data) };
     get data() {
         try {
             return Array.from(this.#indexes).map(i => this.#data.index(i))
@@ -90,6 +88,7 @@ export class KDTree {
         if (!this.#length) throw new Error("Invalid length");
         if (!data.every(e => Array.isArray(e) && e.length === this.#length)) throw new Error("Inconsistent lengths");
         this.#data = dedupe(data);
+        alert(this.#data)
         this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
         this.#tree = this.#assemble(this.#indexes.slice(), 0);
     }
