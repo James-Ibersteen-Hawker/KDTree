@@ -1,4 +1,4 @@
-export const data = [
+export const testSet = [
   [12, 45, 88],
   [85, 210, 34],
   [300, 60, 120],
