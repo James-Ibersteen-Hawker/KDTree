@@ -1,7 +1,13 @@
 const overflow = [-32768, 32767];
 const distance = (p1, p2) => p1.reduce((acc, v, i) => acc + (v - p2[i]) ** 2, 0);
-function fold() {
-
+function fold(view) {
+    let hash = 2166136261;
+    const fnv1aPrime = 16777619;
+    for (let i = 0; i < view.length; i++) {
+        hash ^= view[i];
+        hash = imul(hash, fnv1aPrime);
+    }
+    return hash >>> 0;
 }
 function dedupe(data) {
     if (!data) throw new Error("No data");
@@ -15,7 +21,10 @@ function dedupe(data) {
             if (num < overflow[0] || num > overflow[1])
                 throw new Error(`${num} exceeds bounds of ${overflow.join("-")}`)
         }
-        const key = fold(pt);
+        const byteOffset = i * length * 2;
+        const byteLength = length * 2;
+        const view = new Uint8Array(storage.buffer, byteOffset, byteLength);
+        const key = fold(view);
         if (!map.has(key)) map.set(key, [pt])
         else if (map.has(key)) {
             const bucket = map.get(key);
@@ -81,8 +90,8 @@ export class KDTree {
         if (!this.#length) throw new Error("Invalid length");
         if (!data.every(e => Array.isArray(e) && e.length === this.#length)) throw new Error("Inconsistent lengths");
         this.#data = dedupe(data);
-        // this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
-        // this.#tree = this.#assemble(this.#indexes.slice(), 0);
+        this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
+        this.#tree = this.#assemble(this.#indexes.slice(), 0);
     }
     #assemble(set, axis) {
         if (set instanceof Uint32Array && set.length < 8) return set;
