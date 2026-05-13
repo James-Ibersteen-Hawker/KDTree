@@ -1,12 +1,9 @@
 import { testSet } from "./data.js";
-import initXXH from "https://esm.sh/xxhash-wasm";
-export const xxhPromise = initXXH();
-export class KDTree {
+class KDTree {
     #data;
     #length;
     #tree;
     #indexes;
-    static #hasher;
     static overflow = [-32768, 32767];
     static Branch = class {
         constructor(pivot, axis, boundsL, boundsR, setL, setR) {
@@ -36,18 +33,12 @@ export class KDTree {
             return super.length / this.#UL;
         }
     }
-    static async #initHasher() {
-        if (!this.#hasher) {
-            const { h32 } = await xxhPromise;
-            this.#hasher = h32;
-        }
-        return this.#hasher;
+    static #fold() {
+        alert("folded")
     }
-    static async #dedupe(data) {
-        const h32 = await KDTree.#initHasher();
+    static #dedupe(data) {
         const storage = new Int16Array(data.flat());
         const map = new Map();
-        const payload = [];
         const length = data[0].length;
         for (let i = 0; i < data.length; i++) {
             const point = data[i];
@@ -58,34 +49,26 @@ export class KDTree {
             const byteOffset = i * length * 2;
             const byteLength = length * 2;
             const view = new Uint8Array(storage.buffer, byteOffset, byteLength);
-            const key = h32(view);
-            if (!map.has(key)) map.set(key, point)
+            const key = KDTree.#fold(view);
+            if (!map.has(key)) map.set(key, [point])
             else {
-                //...tumbleweed...//
-                
+                const bucket = map.get(key);
+                const exists = bucket.some((item) => item.every((x, i) => x === point[i]))
+                if (!exists) bucket.push(point);
             }
         }
         if (map.size === 0) throw new Error("Error in dedupe");
         return new KDTree.INT16(Array.from(map.values()).flat(), data[0].length);
     }
     static distance = (p1, p2) => p1.reduce((acc, v, i) => acc + (v - p2[i]) ** 2, 0);
-    static async create(data) {
-        const t = new KDTree();
-        await t.init(data)
-        return t;
-    }
-    constructor() {
-        this.#data = null;
-        this.#length = null;
-        this.#tree = null;
-        this.#length = null;
+    constructor(data) {
+        this.#init(data)
     };
     get data() {
-        try {
-            return Array.from(this.#indexes).map(i => this.#data.index(i))
-        } catch { throw new Error("No data") }
+        try { return Array.from(this.#indexes).map(i => this.#data.index(i)) }
+        catch { throw new Error("No data") }
     }
-    async init(data) {
+    #init(data) {
         if (!data || !Array.isArray(data) || data.length === 0) throw new Error("Invalid Input")
         this.#length = data[0]?.length;
         if (!this.#length) throw new Error("Invalid length");
@@ -114,7 +97,7 @@ export class KDTree {
         this.#indexes = null;
         return this;
     }
-    async newSet(data) {
+    newSet(data) {
         this.clear();
         await this.init(data);
         return this;
@@ -144,7 +127,4 @@ export class KDTree {
         return bestp;
     }
 }
-async function tester() {
-    const test = await KDTree.create(testSet)
-}
-tester();
+alert("here")
