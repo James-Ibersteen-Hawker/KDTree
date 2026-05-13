@@ -1,3 +1,4 @@
+"use strict";
 const overflow = [-32768, 32767];
 const distance = (p1, p2) => p1.reduce((acc, v, i) => acc + (v - p2[i]) ** 2, 0);
 function fold(view) {
@@ -33,23 +34,21 @@ function dedupe(data) {
         }
     }
     if (map.size === 0) throw new Error(`Error in dedupe, map = ${map}`)
-    return new INT16(Array.from(map.values()).flat(), data[0].length)
+    const array = Array.from(map.values()).flat(2);
+    return new INT16(array, data[0].length)
 }
 class Branch {
-    constructor(pivot, axis, boundsL, boundsR, setL, setR) {
-        this.pivot = pivot;
+    #data;
+    constructor(data, pvt, axis, setL, setR, length) {
+        this.#data = data;
+        this.pivot = pvt;
         this.axis = axis;
         this.setL = setL;
         this.setR = setR;
-        this.boundsL = boundsL;
-        this.boundsR = boundsR;
-        this.mins = null;
-        this.maxs = null;
-    }
-    calcBounds(length) {
         this.mins = new Int16Array(length);
         this.maxs = new Int16Array(length);
     }
+    calcBounds
 }
 class INT16 extends Int16Array {
     #UL;
@@ -88,21 +87,22 @@ export class KDTree {
         if (!this.#length) throw new Error("Invalid length");
         if (!data.every(e => Array.isArray(e) && e.length === this.#length)) throw new Error("Inconsistent lengths");
         this.#data = dedupe(data);
-        alert(this.#data)
         this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
         this.#tree = this.#assemble(this.#indexes.slice(), 0);
+        console.log(this.#tree)
     }
-    #assemble(set, axis) {
+    #assemble(set, axis, maxes, mins) {
+        if (set.length === this.#data.length) {
+            console.log("first!")
+        }
         if (set instanceof Uint32Array && set.length < 8) return set;
         const NAxis = (axis + 1) % this.#length;
         const sorted = Array.from(set).sort((a, b) => this.#data.index(a)[axis] - this.#data.index(b)[axis]);
         const mid = sorted.length >> 1;
-        const boundsL = new Uint32Array([sorted[0], sorted[mid - 1]]);
-        const boundsR = new Uint32Array([sorted[mid + 1], sorted[sorted.length - 1]]); //max is 4294967295;
         const PIDX = sorted[mid];
         const setR = this.#assemble(Uint32Array.from(sorted.slice(mid + 1)), NAxis);
         const setL = this.#assemble(Uint32Array.from(sorted.slice(0, mid)), NAxis);
-        return new Branch(PIDX, axis, boundsL, boundsR, setL, setR)
+        return new Branch(this.#data, PIDX, axis, setL, setR, this.#length)
     }
     clear() {
         this.#data = null;
