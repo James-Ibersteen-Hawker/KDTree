@@ -39,12 +39,12 @@ function dedupe(data) {
             if (!Number.isInteger(num)) throw new Error(`${num} is not an integer`);
             if (num < min || num > max) throw new Error(`${num} exceeds bounds of ${min}-${max}`)
         }
-        const key = fold(pt);
+        const key = fold(pt); //hash the point for less deduping
         const bucket = map.get(key);
         if (!bucket) {
             map.set(key, [pt]);
             continue;
-        }
+        } //collision detection and solving, with a deep comparison
         let exists = false;
         outer: for (const entry of bucket) {
             for (let d = 0; d < length; d++) {
@@ -72,10 +72,7 @@ function partition(indices, start, end, pivotIndex, axis, data) {
     swap(indices, pivotIndex, end - 1);
     let store = start;
     for (let i = start; i < end - 1; i++) {
-        if (data.index(indices[i], axis) < pivotValue) {
-            swap(indices, store, i);
-            store++;
-        }
+        if (data.index(indices[i], axis) < pivotValue) swap(indices, store++, i);
     }
     swap(indices, store, end - 1);
     return store;
@@ -101,6 +98,19 @@ class Branch {
         this.maxs = new Int16Array(length);
     }
 }
+/*
+INT16
+
+It is an extension of the native Int16Array
+- It has the property of unit length
+- It is a flattened packed version of the input vectors
+- It offers a way to extract whole points and partial scalar point components
+- Length is overidden to give it "array-like" logical length as per contents
+
+It only supports the initial Int16Array parameter, not the others
+
+Otherwise it works like an enhanced Int16Array
+*/
 class INT16 extends Int16Array {
     #UL;
     constructor(data, unitLength) {
@@ -141,6 +151,17 @@ export class KDTree {
         if (!data.every(e => Array.isArray(e) && e.length === this.#length)) throw new Error("Inconsistent lengths");
         this.#data = dedupe(data);
         this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
+        const maxes = Array.from(this.#data.point(0));
+        const mins = new Array(this.#data.point(0));
+        for (const index in this.#indexes) {
+            for (let i = 0; i < this.#length; i++) {
+                const axis = this.#data.index(index, i);
+                const max = maxes[i];
+                const min = mins[i];
+                if (axis > max || max === null) maxes[i] = axis;
+                else if (axis < min || min === null) mins[i] = axis;
+            }
+        }
         this.#tree = this.#assemble(this.#indexes.slice(), 0, this.#indexes.length, 0, null, null); //future max min
     }
     #assemble(set, start, end, axis, maxes, mins) {

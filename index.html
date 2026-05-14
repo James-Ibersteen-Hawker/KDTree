@@ -1,11 +1,19 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-    <head>
-        <title>NTree</title>
-    </head>
-    <body>
-        <p id="test"></p>
-        <script type="module" src="script.js"></script>
-        <script type="module" src="kdtree.js"></script>
-    </body>
+  <head>
+    <title>NTree</title>
+  </head>
+  <body>
+    <p id="test"></p>
+    <script type="module">
+      import { KDTree } from "./kdtree.js";
+      import { testSet } from "./data.js";
+      try {
+        const tree = new KDTree(testSet);
+        document.getElementById("test").textContent = tree.tree;
+      } catch (err) {
+        alert(err);
+      }
+    </script>
+  </body>
 </html>
