@@ -66,9 +66,19 @@ function dedupe(data) {
     }
     return output;
 } //map-based deduplication, uses FNV-1a hash to dedupe datasets
-const swap = (arr, a, b) => [arr[a], arr[b]] = [arr[b], arr[b]];
-function partition() {
-
+const swap = (arr, a, b) => [arr[a], arr[b]] = [arr[b], arr[a]];
+function partition(indices, start, end, pivotIndex, axis, data) {
+    const pivotValue = data.index(indices[pivotIndex], axis);
+    swap(indices, pivotIndex, end - 1);
+    let store = start;
+    for (let i = start; i < end - 1; i++) {
+        if (data.index(indices[i], axis) < pivotValue) {
+            swap(indices, store, i);
+            store++;
+        }
+    }
+    swap(indices, store, end - 1);
+    return store;
 }
 function quickselect(indices, start, end, k, axis, data) {
     while (true) {
@@ -76,11 +86,8 @@ function quickselect(indices, start, end, k, axis, data) {
         let pivotIndex = start + ((end - start) >> 1);
         pivotIndex = partition(indices, start, end, pivotIndex, axis, data);
         if (k === pivotIndex) return;
-        if (k < pivotIndex) {
-            end = pivotIndex;
-        } else if (pivotIndex <= k) {
-            //left
-        }
+        else if (k < pivotIndex) end = pivotIndex;
+        else if (k > pivotIndex) start = pivotIndex + 1;
     }
 } //the function that partitions the dataset about the pivot
 class Branch {
@@ -93,7 +100,6 @@ class Branch {
         this.mins = new Int16Array(length);
         this.maxs = new Int16Array(length);
     }
-    calcBounds
 }
 class INT16 extends Int16Array {
     #UL;
@@ -124,6 +130,9 @@ export class KDTree {
         try { return Array.from(this.#indexes).map(i => this.#data.index(i)) }
         catch { throw new Error("No data") }
     }
+    get tree() {
+        return JSON.stringify(this.#tree);
+    }
     #init(data) {
         if (data.length > max32bit) throw new Error("Too much data!");
         if (!data || !Array.isArray(data) || data.length === 0) throw new Error("Invalid Input")
@@ -132,22 +141,19 @@ export class KDTree {
         if (!data.every(e => Array.isArray(e) && e.length === this.#length)) throw new Error("Inconsistent lengths");
         this.#data = dedupe(data);
         this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
-        this.#tree = this.#assemble(this.#indexes.slice(), 0);
-        console.log(this.#tree)
+        this.#tree = this.#assemble(this.#indexes.slice(), 0, this.#indexes.length, 0, null, null); //future max min
     }
-    #assemble(set, axis, maxes, mins) {
-        if (set.length === this.#data.length) {
-            console.log("first!")
-        }
-        if (set instanceof Uint32Array && set.length < 8) return set;
+    #assemble(set, start, end, axis, maxes, mins) {
+        if ((end - start) === this.#data.length) console.log("first!")
+        if (set instanceof Uint32Array && (end - start) < 8) return set.slice(start, end);
         const NAxis = (axis + 1) % this.#length;
-        const sorted = Array.from(set).sort((a, b) => this.#data.index(a, axis) - this.#data.index(b, axis));
-        const mid = sorted.length >> 1;
-        const PIDX = sorted[mid];
-        const setR = this.#assemble(Uint32Array.from(sorted.slice(mid + 1)), NAxis);
-        const setL = this.#assemble(Uint32Array.from(sorted.slice(0, mid)), NAxis);
+        const mid = ((end - start) >> 1) + start;
+        quickselect(set, start, end, mid, axis, this.#data);
+        const PIDX = set[mid];
+        const setL = this.#assemble(set, start, mid, NAxis, null, null);
+        const setR = this.#assemble(set, mid + 1, end, NAxis, null, null);
         return new Branch(PIDX, axis, setL, setR, this.#length)
-    }
+    } //uses quickselect to not duplicate the original array, and the Leaves are Uint32Arrays, not Branches
     clear() {
         this.#data = null;
         this.#tree = null;
