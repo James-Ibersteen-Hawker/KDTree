@@ -1,6 +1,19 @@
 "use strict";
-const overflow = [-32768, 32767];
-const distance = (p1, p2) => p1.reduce((acc, v, i) => acc + (v - p2[i]) ** 2, 0);
+/*
+kdtree
+
+this module provides:
+- fast nearest-neighbor search
+- large dataset support
+
+this assumes:
+- integers only
+- within defined limits
+- all points are the same length K
+*/
+const max32bit = 4294967296; //maximum number of inputs on the dataset
+const overflow = [-32768, 32767]; //maximum input number in any point
+const distance = (p1, p2) => p1.reduce((acc, v, i) => acc + (v - p2[i]) ** 2, 0); //Euclidean distance formula, sans sqrt()
 function fold(view) {
     let hash = 2166136261;
     const fnv1aPrime = 16777619;
@@ -13,7 +26,7 @@ function fold(view) {
         hash = Math.imul(hash, fnv1aPrime);
     }
     return hash >>> 0;
-}
+} //FNV-1a hashing for faster dedupe, fast and efficient enough for this need
 function dedupe(data) {
     if (!Array.isArray(data) || data.length === 0) throw new Error("No data");
     const map = new Map();
@@ -52,7 +65,7 @@ function dedupe(data) {
         for (const pt of bucket) for (let d = 0; d < length; d++) output[offset++] = pt[d];
     }
     return output;
-}
+} //map-based deduplication, uses FNV-1a hash to dedupe datasets
 class Branch {
     #data;
     constructor(data, pvt, axis, setL, setR, length) {
@@ -72,7 +85,7 @@ class INT16 extends Int16Array {
         super(data);
         this.#UL = unitLength;
     }
-    index(i) {
+    index(i, axis) {
         const start = i * this.#UL;
         const end = start + this.#UL;
         if (end > super.length) throw new Error(`Index ${i} exceeds bounds`);
@@ -91,13 +104,11 @@ export class KDTree {
     #indexes;
     constructor(data) { this.#init(data) };
     get data() {
-        try {
-            return Array.from(this.#indexes).map(i => this.#data.index(i))
-        } catch {
-            throw new Error("No data")
-        }
+        try { return Array.from(this.#indexes).map(i => this.#data.index(i)) }
+        catch { throw new Error("No data") }
     }
     #init(data) {
+        if (data.length > max32bit) throw new Error("Too much data!");
         if (!data || !Array.isArray(data) || data.length === 0) throw new Error("Invalid Input")
         this.#length = data[0]?.length;
         if (!this.#length) throw new Error("Invalid length");
@@ -126,11 +137,11 @@ export class KDTree {
         this.#length = null;
         this.#indexes = null;
         return this;
-    }
+    } //empty the dataset
     newSet(data) {
         this.clear().#init(data);
         return this;
-    }
+    } //clear, and then initialize with another dataset
     search(q, branch = this.#tree, bestL, bestP) {
         if (!this.#tree) throw new Error("No tree");
         if (branch instanceof Uint32Array) {
@@ -150,5 +161,5 @@ export class KDTree {
             if (D < bD) [bD, bP] = [D, point];
         }
         return [bD, bP];
-    }
+    } //finally brute force the remaining point cloud
 }
