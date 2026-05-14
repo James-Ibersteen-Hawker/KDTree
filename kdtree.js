@@ -4,38 +4,54 @@ const distance = (p1, p2) => p1.reduce((acc, v, i) => acc + (v - p2[i]) ** 2, 0)
 function fold(view) {
     let hash = 2166136261;
     const fnv1aPrime = 16777619;
-    for (let i = 0; i < view.length; i++) {
-        hash ^= view[i];
+    for (const num of view) {
+        //low byte
+        hash ^= num & 0xff;
+        hash = Math.imul(hash, fnv1aPrime);
+        //high byte
+        hash ^= (num >> 8) & 0xff;
         hash = Math.imul(hash, fnv1aPrime);
     }
     return hash >>> 0;
 }
 function dedupe(data) {
-    if (!data) throw new Error("No data");
-    const storage = new Int16Array(data.flat());
+    if (!Array.isArray(data) || data.length === 0) throw new Error("No data");
     const map = new Map();
     const length = data[0].length;
-    for (let i = 0; i < data.length; i++) {
-        const pt = data[i];
-        for (const num of pt) {
+    const min = overflow[0]
+    const max = overflow[1];
+    for (const pt of data) {
+        for (let n = 0; n < length; n++) {
+            const num = pt[n];
             if (!Number.isInteger(num)) throw new Error(`${num} is not an integer`);
-            if (num < overflow[0] || num > overflow[1])
-                throw new Error(`${num} exceeds bounds of ${overflow.join("-")}`)
+            if (num < min || num > max) throw new Error(`${num} exceeds bounds of ${min}-${max}`)
         }
-        const byteOffset = i * length * 2;
-        const byteLength = length * 2;
-        const view = new Uint8Array(storage.buffer, byteOffset, byteLength);
-        const key = fold(view);
-        if (!map.has(key)) map.set(key, [pt])
-        else if (map.has(key)) {
-            const bucket = map.get(key);
-            const exists = bucket.some((item) => item.every((x, i) => x === pt[i]));
-            if (!exists) bucket.push(pt);
+        const key = fold(pt);
+        const bucket = map.get(key);
+        if (!bucket) {
+            map.set(key, [pt]);
+            continue;
         }
+        let exists = false;
+        outer: for (const entry of bucket) {
+            for (let d = 0; d < length; d++) {
+                if (entry[d] !== pt[d]) continue outer;
+            }
+            exists = true;
+            break;
+        }
+        if (!exists) bucket.push(pt);
     }
     if (map.size === 0) throw new Error(`Error in dedupe, map = ${map}`)
-    const array = Array.from(map.values()).flat(2);
-    return new INT16(array, data[0].length)
+    let uniqueLength = 0;
+    let offset = 0;
+    const buckets = Array.from(map.values())
+    for (const bucket of buckets) uniqueLength += bucket.length;
+    const output = new INT16(uniqueLength, length);
+    for (const bucket of buckets) {
+        for (const pt of bucket) for (let d = 0; d < length; d++) output[offset++] = pt[d];
+    }
+    return output;
 }
 class Branch {
     #data;
