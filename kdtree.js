@@ -66,10 +66,26 @@ function dedupe(data) {
     }
     return output;
 } //map-based deduplication, uses FNV-1a hash to dedupe datasets
+const swap = (arr, a, b) => [arr[a], arr[b]] = [arr[b], arr[b]];
+function partition() {
+
+}
+function quickselect(indices, start, end, k, axis, data) {
+    while (true) {
+        if (end - start <= 1) return;
+        let pivotIndex = start + ((end - start) >> 1);
+        pivotIndex = partition(indices, start, end, pivotIndex, axis, data);
+        if (k === pivotIndex) return;
+        if (k < pivotIndex) {
+            end = pivotIndex;
+        } else if (pivotIndex <= k) {
+            //left
+        }
+    }
+} //the function that partitions the dataset about the pivot
 class Branch {
     #data;
-    constructor(data, pvt, axis, setL, setR, length) {
-        this.#data = data;
+    constructor(pvt, axis, setL, setR, length) {
         this.pivot = pvt;
         this.axis = axis;
         this.setL = setL;
@@ -86,16 +102,17 @@ class INT16 extends Int16Array {
         this.#UL = unitLength;
     }
     index(i, axis) {
+        return this[i * this.#UL + axis];
+    } //scalar point access
+    point(i, copy = false) {
         const start = i * this.#UL;
         const end = start + this.#UL;
-        if (end > super.length) throw new Error(`Index ${i} exceeds bounds`);
-        const output = new Array(this.#UL);
-        for (let q = start; q < end; q++) output[q - start] = this[q];
-        return output;
-    }
+        const view = this.subarray(start, end);
+        return copy ? Array.from(view) : view;
+    } // vector point reference vs copy access
     get length() {
         return super.length / this.#UL;
-    }
+    } //"logical" length vs true length
 }
 export class KDTree {
     #data;
@@ -124,12 +141,12 @@ export class KDTree {
         }
         if (set instanceof Uint32Array && set.length < 8) return set;
         const NAxis = (axis + 1) % this.#length;
-        const sorted = Array.from(set).sort((a, b) => this.#data.index(a)[axis] - this.#data.index(b)[axis]);
+        const sorted = Array.from(set).sort((a, b) => this.#data.index(a, axis) - this.#data.index(b, axis));
         const mid = sorted.length >> 1;
         const PIDX = sorted[mid];
         const setR = this.#assemble(Uint32Array.from(sorted.slice(mid + 1)), NAxis);
         const setL = this.#assemble(Uint32Array.from(sorted.slice(0, mid)), NAxis);
-        return new Branch(this.#data, PIDX, axis, setL, setR, this.#length)
+        return new Branch(PIDX, axis, setL, setR, this.#length)
     }
     clear() {
         this.#data = null;
