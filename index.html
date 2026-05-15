@@ -3,14 +3,15 @@
   <head>
     <title>NTree</title>
   </head>
-  <body>
+  <body style="color: white; background: black;">
     <p id="test"></p>
     <script type="module">
       import { KDTree } from "./kdtree.js";
       import { testSet } from "./data.js";
       try {
         const tree = new KDTree(testSet);
-        document.getElementById("test").textContent = tree.tree;
+        const result = tree.search([101,1,700])
+        alert(result)
       } catch (err) {
         alert(err);
       }

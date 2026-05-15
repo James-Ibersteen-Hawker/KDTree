@@ -60,7 +60,7 @@ function dedupe(data) {
     let offset = 0;
     const buckets = Array.from(map.values())
     for (const bucket of buckets) uniqueLength += bucket.length;
-    const output = new INT16(uniqueLength, length);
+    const output = new INT16(uniqueLength * length, length);
     for (const bucket of buckets) {
         for (const pt of bucket) for (let d = 0; d < length; d++) output[offset++] = pt[d];
     }
@@ -88,14 +88,13 @@ function quickselect(indices, start, end, k, axis, data) {
     }
 } //the function that partitions the dataset about the pivot
 class Branch {
-    #data;
-    constructor(pvt, axis, setL, setR, length) {
+    constructor(pvt, axis, setL, setR, length, mins, maxes) {
         this.pivot = pvt;
         this.axis = axis;
         this.setL = setL;
         this.setR = setR;
-        this.mins = new Int16Array(length);
-        this.maxs = new Int16Array(length);
+        this.mins = mins;
+        this.maxes = maxes;
     }
 }
 /*
@@ -113,6 +112,9 @@ Otherwise it works like an enhanced Int16Array
 */
 class INT16 extends Int16Array {
     #UL;
+    static get [Symbol.species]() {
+        return Int16Array;
+    }
     constructor(data, unitLength) {
         super(data);
         this.#UL = unitLength;
@@ -130,6 +132,24 @@ class INT16 extends Int16Array {
         return super.length / this.#UL;
     } //"logical" length vs true length
 }
+/*
+A custom wrapper for the leaves to preserve Uint32 but with extra properties
+*/
+class UINT32 extends Uint32Array {
+    constructor(...params) {
+        super(...params);
+        this.maxes = null;
+        this.mins = null;
+    }
+    static get [Symbol.species]() {
+        return Uint32Array;
+    }
+}
+/*
+custom low-level KD-tree with as much emphasis on efficiency as possible
+Note the usage of almost exclusively typed arrays, and the quicksort
+The aim is to be as memory-compact as possible for storage and usage purposes
+*/
 export class KDTree {
     #data;
     #length;
@@ -137,11 +157,8 @@ export class KDTree {
     #indexes;
     constructor(data) { this.#init(data) };
     get data() {
-        try { return Array.from(this.#indexes).map(i => this.#data.index(i)) }
+        try { return Array.from(this.#indexes).map(i => this.#data.point(i, true)) }
         catch { throw new Error("No data") }
-    }
-    get tree() {
-        return JSON.stringify(this.#tree);
     }
     #init(data) {
         if (data.length > max32bit) throw new Error("Too much data!");
@@ -152,28 +169,36 @@ export class KDTree {
         this.#data = dedupe(data);
         this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
         const maxes = Array.from(this.#data.point(0));
-        const mins = new Array(this.#data.point(0));
-        for (const index in this.#indexes) {
+        const mins = Array.from(this.#data.point(0));
+        for (const index of this.#indexes) {
             for (let i = 0; i < this.#length; i++) {
                 const axis = this.#data.index(index, i);
                 const max = maxes[i];
                 const min = mins[i];
-                if (axis > max || max === null) maxes[i] = axis;
-                else if (axis < min || min === null) mins[i] = axis;
+                if (axis > max) maxes[i] = axis;
+                else if (axis < min) mins[i] = axis;
             }
         }
-        this.#tree = this.#assemble(this.#indexes.slice(), 0, this.#indexes.length, 0, null, null); //future max min
+        this.#tree = this.#assemble(this.#indexes.slice(), 0, this.#indexes.length, 0, mins, maxes); //future max min
     }
-    #assemble(set, start, end, axis, maxes, mins) {
-        if ((end - start) === this.#data.length) console.log("first!")
-        if (set instanceof Uint32Array && (end - start) < 8) return set.slice(start, end);
+    #assemble(set, start, end, axis, mins, maxes) {
+        if (set instanceof Uint32Array && (end - start) < 8) {
+            const data = new UINT32(set.slice(start, end));
+            data.maxes = maxes;
+            data.mins = mins;
+            return data;
+        }
         const NAxis = (axis + 1) % this.#length;
         const mid = ((end - start) >> 1) + start;
         quickselect(set, start, end, mid, axis, this.#data);
         const PIDX = set[mid];
-        const setL = this.#assemble(set, start, mid, NAxis, null, null);
-        const setR = this.#assemble(set, mid + 1, end, NAxis, null, null);
-        return new Branch(PIDX, axis, setL, setR, this.#length)
+        const lMaxes = maxes.slice();
+        const rMins = mins.slice();
+        rMins[axis] = this.#data.index(PIDX, axis);
+        lMaxes[axis] = this.#data.index(PIDX, axis);
+        const setL = this.#assemble(set, start, mid, NAxis, mins, lMaxes);
+        const setR = this.#assemble(set, mid + 1, end, NAxis, rMins, maxes);
+        return new Branch(PIDX, axis, setL, setR, this.#length, mins, maxes)
     } //uses quickselect to not duplicate the original array, and the Leaves are Uint32Arrays, not Branches
     clear() {
         this.#data = null;
@@ -186,24 +211,56 @@ export class KDTree {
         this.clear().#init(data);
         return this;
     } //clear, and then initialize with another dataset
-    search(q, branch = this.#tree, bestL, bestP) {
+    search(q, branch = this.#tree) {
+        if (!Array.isArray(q) || q.length !== this.#length) throw new Error(`Query ${q} is invalid`);
         if (!this.#tree) throw new Error("No tree");
-        if (branch instanceof Uint32Array) {
-            return ["a", "b", "C"]
-        }
-        const pivot = this.#data.index(branch.pivot);
+        return this.#search(q, branch)?.[1];
+    }
+    #search(q, branch) {
+        if (branch instanceof UINT32) {
+            const closest = this.#closest(branch, q);
+            return closest;
+        } //the leaf nodes are Uint32Arrays, not Branch{}
+        const pivot = this.#data.point(branch.pivot);
         const axis = branch.axis;
-        const side = q[axis] < pivot[axis] ? branch.setL : branch.setR;
-        const result = this.search(q, side);
-        return result;
+        const goLeft = q[axis] < pivot[axis]
+        const side = goLeft ? branch.setL : branch.setR;
+        const other = goLeft ? branch.setR : branch.setL; //corresponding other dataset
+        let [bD, bP] = this.#search(q, side);
+        const pD = distance(q, pivot);
+        if (pD < bD) [bD, bP] = [pD, pivot];
+        if (!other) return [bD, bP]
+        const otherD = this.#boundDistance(q, other.mins, other.maxes);
+        if (otherD < bD) {
+            const [oD, oP] = this.#search(q, other);
+            if (oD < bD) [bD, bP] = [oD, oP];
+        }
+        return [bD, bP]
+    }
+    #boundDistance(q, mins, maxes) {
+        let dist = 0;
+        for (let i = 0; i < this.#length; i++) {
+            let d = 0;
+            if (q[i] < mins[i]) d = mins[i] - q[i];
+            else if (q[i] > maxes[i]) d = q[i] - maxes[i];
+            dist += d * d;
+        }
+        return dist;
     }
     #closest(list, q) {
         let [bD, bP] = [Infinity, null];
         for (let i = 0; i < list.length; i++) {
-            const point = this.#data.index(list[i]);
+            const point = this.#data.point(list[i]);
             const D = distance(point, q);
             if (D < bD) [bD, bP] = [D, point];
         }
         return [bD, bP];
     } //finally brute force the remaining point cloud
 }
+
+/*
+next steps:
+- leaf geometric nodes, not numerical
+- optimise closest()
+
+*/
