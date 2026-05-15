@@ -211,10 +211,12 @@ export class KDTree {
         this.clear().#init(data);
         return this;
     } //clear, and then initialize with another dataset
-    search(q, branch = this.#tree) {
+    search(q, includeDist = false, branch = this.#tree) {
         if (!Array.isArray(q) || q.length !== this.#length) throw new Error(`Query ${q} is invalid`);
         if (!this.#tree) throw new Error("No tree");
-        return this.#search(q, branch)?.[1];
+        const result = this.#search(q, branch);
+        if (includeDist) return [result[0], Array.from(result[1])];
+        return Array.from(result[1]);
     }
     #search(q, branch) {
         if (branch instanceof UINT32) {
