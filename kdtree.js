@@ -96,6 +96,9 @@ class Branch {
         this.mins = mins;
         this.maxes = maxes;
     }
+    static get [Symbol.species]() {
+        return Branch;
+    }
 }
 /*
 INT16
@@ -158,27 +161,25 @@ export class KDTree {
     static parse() {
 
     }
-    static serialize(kdtree) {
-        alert(kdtree);
-        if (!(kdtree instanceof KDTree)) throw new Error("Invalid serialization input");
-        const flatTree = KDTree.#flatten(kdtree.tree, 0);
+    serialize() {
+        const flatTree = [];
+        KDTree.#flatten(this.#tree, 0, flatTree)
         // Compresses to Node0(1,2)Node1(3,4)Node3(leaf,Leaf3)Node4(leaf,Leaf4)Node2(5,6)Node5(leaf,Leaf5)Node6(leaf,Leaf6)
     }
-    static #flatten(branch, index) {
+    static #flatten(branch, index, accumulator) { //index is the node ID
         if (branch instanceof UINT32) {
-            return Uint32Array.from(branch)
+            const { mins, maxes } = branch;
+            accumulator.push(Uint32Array.from([index, ...branch, ...mins, ...maxes]))
+            return;
         }
-        const { pivot, axis, setL, setR, mins, maxes } = branch;
-        const version = Uint32Array([pivot, axis, ...mins, ...maxes]) //how to prescribe the setL value???
-        alert([pivot, axis, setL, setR, mins, maxes])
-
+        if (!(branch instanceof Branch)) throw new Error("Branch is invalid");
+        
     }
     constructor(data) { this.#init(data) };
     get data() {
         try { return Array.from(this.#indexes).map(i => this.#data.point(i, true)) }
         catch { throw new Error("No data") }
     }
-    get tree() { return structuredClone(this.#tree) } //intentionally deep clone, so that tree is functionally immutable
     #init(data) {
         if (data.length > max32bit) throw new Error("Too much data!");
         if (!data || !Array.isArray(data) || data.length === 0) throw new Error("Invalid Input")
