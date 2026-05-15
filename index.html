@@ -11,8 +11,9 @@
       const tree = new KDTree(testSet);
       const q = [0,0,0];
       try {
-        const result = tree.search(q)
-        alert(result);
+        // const result = tree.search(q)
+        // alert(result);
+        const data = KDTree.serialize(tree);
       } catch (err) {
         alert(err);
       }

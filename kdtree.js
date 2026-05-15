@@ -158,29 +158,27 @@ export class KDTree {
     static parse() {
 
     }
-    static serialize(tree) {
-        /*
-        KD trees serialization idea:
+    static serialize(kdtree) {
+        alert(kdtree);
+        if (!(kdtree instanceof KDTree)) throw new Error("Invalid serialization input");
+        const flatTree = KDTree.#flatten(kdtree.tree, 0);
+        // Compresses to Node0(1,2)Node1(3,4)Node3(leaf,Leaf3)Node4(leaf,Leaf4)Node2(5,6)Node5(leaf,Leaf5)Node6(leaf,Leaf6)
+    }
+    static #flatten(branch, index) {
+        if (branch instanceof UINT32) {
+            return Uint32Array.from(branch)
+        }
+        const { pivot, axis, setL, setR, mins, maxes } = branch;
+        const version = Uint32Array([pivot, axis, ...mins, ...maxes]) //how to prescribe the setL value???
+        alert([pivot, axis, setL, setR, mins, maxes])
 
-Tree: Node0 →Node1 / Node2
-Node1 →Node3 / Node4
-Node3 →Leaf3
-Node4 →Leaf4
-Node2 → Node5 / Node6
-Node5 → Leaf5
-Node6 → Leaf6
-
-Using numerical keys to associate nodes to each other for later reassembly
-
-Compresses to Node0(1,2)Node1(3,4)Node3(leaf,Leaf3)Node4(leaf,Leaf4)Node2(5,6)Node5(leaf,Leaf5)Node6(leaf,Leaf6)
-
-        */
     }
     constructor(data) { this.#init(data) };
     get data() {
         try { return Array.from(this.#indexes).map(i => this.#data.point(i, true)) }
         catch { throw new Error("No data") }
     }
+    get tree() { return structuredClone(this.#tree) } //intentionally deep clone, so that tree is functionally immutable
     #init(data) {
         if (data.length > max32bit) throw new Error("Too much data!");
         if (!data || !Array.isArray(data) || data.length === 0) throw new Error("Invalid Input")
