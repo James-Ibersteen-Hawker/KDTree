@@ -8,10 +8,11 @@
     <script type="module">
       import { KDTree } from "./kdtree.js";
       import { testSet } from "./data.js";
+      const tree = new KDTree(testSet);
+      const q = [0,0,0];
       try {
-        const tree = new KDTree(testSet);
-        const result = tree.search([101,1,700])
-        alert(result)
+        const result = tree.search(q)
+        alert(result);
       } catch (err) {
         alert(err);
       }

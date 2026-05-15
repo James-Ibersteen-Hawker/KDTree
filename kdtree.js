@@ -155,6 +155,27 @@ export class KDTree {
     #length;
     #tree;
     #indexes;
+    static parse() {
+
+    }
+    static serialize(tree) {
+        /*
+        KD trees serialization idea:
+
+Tree: Node0 →Node1 / Node2
+Node1 →Node3 / Node4
+Node3 →Leaf3
+Node4 →Leaf4
+Node2 → Node5 / Node6
+Node5 → Leaf5
+Node6 → Leaf6
+
+Using numerical keys to associate nodes to each other for later reassembly
+
+Compresses to Node0(1,2)Node1(3,4)Node3(leaf,Leaf3)Node4(leaf,Leaf4)Node2(5,6)Node5(leaf,Leaf5)Node6(leaf,Leaf6)
+
+        */
+    }
     constructor(data) { this.#init(data) };
     get data() {
         try { return Array.from(this.#indexes).map(i => this.#data.point(i, true)) }
