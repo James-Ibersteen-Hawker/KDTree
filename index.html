@@ -14,6 +14,7 @@
         // const result = tree.search(q)
         // alert(result);
         const data = tree.serialize();
+        document.getElementById("test").textContent = JSON.stringify(data)
       } catch (err) {
         alert(err);
       }

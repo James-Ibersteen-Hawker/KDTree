@@ -158,22 +158,34 @@ export class KDTree {
     #length;
     #tree;
     #indexes;
+    static TYPE_LEAF = 0;
+    static TYPE_BRANCH = 1;
     static parse() {
 
     }
     serialize() {
         const flatTree = [];
         KDTree.#flatten(this.#tree, 0, flatTree)
+        return flatTree;
         // Compresses to Node0(1,2)Node1(3,4)Node3(leaf,Leaf3)Node4(leaf,Leaf4)Node2(5,6)Node5(leaf,Leaf5)Node6(leaf,Leaf6)
     }
     static #flatten(branch, index, accumulator) { //index is the node ID
         if (branch instanceof UINT32) {
             const { mins, maxes } = branch;
-            accumulator.push(Uint32Array.from([index, ...branch, ...mins, ...maxes]))
-            return;
-        }
+            accumulator.push(Float32Array.from([index, KDTree.TYPE_LEAF, ...branch, ...mins, ...maxes]))
+            return index;
+        } //if leaf, simply return the index it is at
         if (!(branch instanceof Branch)) throw new Error("Branch is invalid");
-        
+        //if it is a branch
+        const { pivot, axis, mins, maxes, setL, setR} = branch;
+        const leftStart = index + 1;
+        const leftEnd = KDTree.#flatten(setL, leftStart, accumulator);
+        const rightStart = leftEnd + 1;
+        const rightLast = KDTree.#flatten(setR, rightStart, accumulator);
+        accumulator.push(Float32Array.from([
+            index, KDTree.TYPE_BRANCH, pivot, axis, ...mins, ...maxes, leftStart, rightStart
+        ]))
+        return rightLast;
     }
     constructor(data) { this.#init(data) };
     get data() {
