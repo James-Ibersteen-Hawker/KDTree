@@ -15,6 +15,8 @@
         // alert(result);
         const data = tree.serialize();
         document.getElementById("test").textContent = JSON.stringify(data)
+        const parsed = new KDTree();
+        document.getElementById("test").textContent = JSON.stringify(parsed.parse(data))
       } catch (err) {
         alert(err);
       }

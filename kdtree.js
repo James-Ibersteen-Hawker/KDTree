@@ -160,11 +160,15 @@ export class KDTree {
     #indexes;
     static TYPE_LEAF = 0;
     static TYPE_BRANCH = 1;
-    static parse() {
-
+    parse(serialTree) {
+        const sorted = serialTree.slice().sort((a, b) => a[0] - b[0]);
+        const data = sorted[0];
+        this.#data = new INT16(data.slice(2), data[1]); //step 1, I have reconstructed the dataset
+        return sorted;
     }
     serialize() {
         const flatTree = [];
+        flatTree.push(new Float32Array([-1, this.#length, ...this.#data]))
         KDTree.#flatten(this.#tree, 0, flatTree)
         return flatTree;
         // Compresses to Node0(1,2)Node1(3,4)Node3(leaf,Leaf3)Node4(leaf,Leaf4)Node2(5,6)Node5(leaf,Leaf5)Node6(leaf,Leaf6)
@@ -177,7 +181,7 @@ export class KDTree {
         } //if leaf, simply return the index it is at
         if (!(branch instanceof Branch)) throw new Error("Branch is invalid");
         //if it is a branch
-        const { pivot, axis, mins, maxes, setL, setR} = branch;
+        const { pivot, axis, mins, maxes, setL, setR } = branch;
         const leftStart = index + 1;
         const leftEnd = KDTree.#flatten(setL, leftStart, accumulator);
         const rightStart = leftEnd + 1;
@@ -187,7 +191,9 @@ export class KDTree {
         ]))
         return rightLast;
     }
-    constructor(data) { this.#init(data) };
+    constructor(data) { 
+        if (data) this.#init(data);
+    };
     get data() {
         try { return Array.from(this.#indexes).map(i => this.#data.point(i, true)) }
         catch { throw new Error("No data") }
