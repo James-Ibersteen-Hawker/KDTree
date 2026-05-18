@@ -177,7 +177,7 @@ export class KDTree {
     #indexes;
     static #TYPE_LEAF = 0;
     static #TYPE_BRANCH = 1;
-    parse(serialTree) {
+    initFrom(serialTree) {
         const sorted = serialTree.slice().sort((a, b) => a[0] - b[0]);
         const data = sorted[0];
         if (!data || data.length === 0) throw new Error("Invalid data");
