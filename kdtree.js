@@ -13,7 +13,11 @@ this assumes:
 */
 const max32bit = 4294967296; //maximum number of inputs on the dataset
 const overflow = [-32768, 32767]; //maximum input number in any point
-const distance = (p1, p2) => p1.reduce((acc, v, i) => acc + (v - p2[i]) ** 2, 0); //Euclidean distance formula, sans sqrt()
+const distance = (p1, p2) => {
+    let d = 0;
+    for (let i = 0; i < p1.length; i++) d += (p1[i] - p2[i]) ** 2;
+    return d;
+}; //Euclidean distance formula, sans sqrt()
 function fold(view) {
     let hash = 2166136261;
     const fnv1aPrime = 16777619;
@@ -158,25 +162,54 @@ export class KDTree {
     #length;
     #tree;
     #indexes;
-    static TYPE_LEAF = 0;
-    static TYPE_BRANCH = 1;
+    static #TYPE_LEAF = 0;
+    static #TYPE_BRANCH = 1;
     parse(serialTree) {
         const sorted = serialTree.slice().sort((a, b) => a[0] - b[0]);
         const data = sorted[0];
-        this.#data = new INT16(data.slice(2), data[1]); //step 1, I have reconstructed the dataset
-        return sorted;
+        if (!data || data.length === 0) throw new Error("Invalid data");
+        const length = data[1];
+        this.#data = new INT16(data.slice(2), length); //step 1, I have reconstructed the dataset
+        sorted.shift()
+        const newTree = KDTree.#assembleTree(sorted, 0, length);
+        this.#tree = newTree;
+        this.#length = length;
+        this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
+        return newTree;
+    }
+    static #assembleTree(set, index, length) {
+        if (!set[index]) throw new Error("No item");
+        if (set[index][1] === KDTree.#TYPE_LEAF) {
+            const maxes = set[index].subarray(-length);
+            const mins = set[index].subarray(-length * 2, -length);
+            const points = set[index].subarray(2, -length * 2);
+            const node = new UINT32(points);
+            node.maxes = maxes;
+            node.mins = mins;
+            return node;
+        }
+        else if (set[index][1] !== KDTree.#TYPE_BRANCH) throw new Error("Not a branch or leaf");
+        const pivot = set[index][2];
+        const axis = set[index][3];
+        const mins = set[index].subarray(4, 4 + length);
+        const maxes = set[index].subarray(4 + length, 4 + length * 2);
+        const leftID = set[index][set[index].length - 2];
+        const rightID = set[index][set[index].length - 1];
+        const node = new Branch(pivot, axis, null, null, length, mins, maxes);
+        node.setL = KDTree.#assembleTree(set, leftID, length);
+        node.setR = KDTree.#assembleTree(set, rightID, length);
+        return node;
     }
     serialize() {
         const flatTree = [];
-        flatTree.push(new Float32Array([-1, this.#length, ...this.#data]))
+        flatTree.push(new Float64Array([-1, this.#length, ...this.#data]))
         KDTree.#flatten(this.#tree, 0, flatTree)
         return flatTree;
-        // Compresses to Node0(1,2)Node1(3,4)Node3(leaf,Leaf3)Node4(leaf,Leaf4)Node2(5,6)Node5(leaf,Leaf5)Node6(leaf,Leaf6)
     }
     static #flatten(branch, index, accumulator) { //index is the node ID
         if (branch instanceof UINT32) {
             const { mins, maxes } = branch;
-            accumulator.push(Float32Array.from([index, KDTree.TYPE_LEAF, ...branch, ...mins, ...maxes]))
+            accumulator.push(Float64Array.from([index, KDTree.#TYPE_LEAF, ...branch, ...mins, ...maxes]))
             return index;
         } //if leaf, simply return the index it is at
         if (!(branch instanceof Branch)) throw new Error("Branch is invalid");
@@ -186,12 +219,12 @@ export class KDTree {
         const leftEnd = KDTree.#flatten(setL, leftStart, accumulator);
         const rightStart = leftEnd + 1;
         const rightLast = KDTree.#flatten(setR, rightStart, accumulator);
-        accumulator.push(Float32Array.from([
-            index, KDTree.TYPE_BRANCH, pivot, axis, ...mins, ...maxes, leftStart, rightStart
+        accumulator.push(Float64Array.from([
+            index, KDTree.#TYPE_BRANCH, pivot, axis, ...mins, ...maxes, leftStart, rightStart
         ]))
         return rightLast;
     }
-    constructor(data) { 
+    constructor(data) {
         if (data) this.#init(data);
     };
     get data() {

@@ -8,13 +8,13 @@
     <script type="module">
       import { KDTree } from "./kdtree.js";
       import { testSet } from "./data.js";
-      const tree = new KDTree(testSet);
+      const test = new KDTree(testSet);
       const q = [0,0,0];
       try {
         // const result = tree.search(q)
         // alert(result);
-        const data = tree.serialize();
-        document.getElementById("test").textContent = JSON.stringify(data)
+        const data = test.serialize();
+        // document.getElementById("test").textContent = JSON.stringify(test.tree)
         const parsed = new KDTree();
         document.getElementById("test").textContent = JSON.stringify(parsed.parse(data))
       } catch (err) {
