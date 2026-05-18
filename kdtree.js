@@ -148,6 +148,19 @@ class UINT32 extends Uint32Array {
         this.maxes = null;
         this.mins = null;
     }
+    minsmaxes() {
+        // const maxes = Array.from(this.#data.point(0));
+        // const mins = Array.from(this.#data.point(0));
+        // for (const index of this.#indexes) {
+        //     for (let i = 0; i < this.#length; i++) {
+        //         const axis = this.#data.index(index, i);
+        //         const max = maxes[i];
+        //         const min = mins[i];
+        //         if (axis > max) maxes[i] = axis;
+        //         else if (axis < min) mins[i] = axis;
+        //     }
+        // }
+    }
     static get [Symbol.species]() {
         return Uint32Array;
     }
