@@ -7,14 +7,20 @@
     <p id="test"></p>
     <script type="module">
       import { KDTree } from "./kdtree.js";
+      import KDTree2 from "./tree2.js"
       import { testSet } from "./data.js";
-      const testTree = new KDTree(testSet);
+      try {
+      // const testTree = new KDTree(testSet);
       const q = [100,0,0];
       // const result = testTree.search(q);
-      const serialized = testTree.serialize();
-      const newTree = new KDTree();
-      newTree.initFrom(serialized)
-      document.getElementById("test").textContent = serialized;
+      // const serialized = testTree.serialize();
+      // const newTree = new KDTree();
+      // newTree.initFrom(serialized)
+      // document.getElementById("test").textContent = serialized;
+      const tree2 = new KDTree2(testSet)
+      } catch (err) {
+        alert (err)
+      }
     </script>
   </body>
 </html>
