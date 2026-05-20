@@ -345,6 +345,11 @@ export class KDTree {
 }
 
 /*
+1.1 adds a serializer and 1.2 adds a parser, to become 1.3.
+Usage: var tree = new KDTree(), tree.initFrom(input)
+*/
+
+/*
 next steps:
 - leaf geometric nodes, not numerical
 - optimise closest()
