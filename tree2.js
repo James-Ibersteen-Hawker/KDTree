@@ -18,40 +18,42 @@ async function validate(data, length) {
             flat[i * length + k] = data[i][k];
         }
     }
+    let buffer = new Uint8Array(flat.buffer);
     for (let i = 0; i < flat.length; i += length) {
-        const point = flat.subarray(i, i + length);
-        const key = h32(point);
+        const byteStart = i * length * 4;
+        const byteEnd = byteStart + length * 4;
+        const point = buffer.subarray(byteStart, byteEnd);
+        const key = h32(sub);
         const bucket = map.get(key);
-        if (!bucket) map.set(key, [point]);
-        else {
+        if (!bucket) map.set(key, byteStart);
+        else if (bucket) {
             let exists = false;
-            outer: for (let i = 0; i < bucket.length; i++) {
-                for (let k = 0; k < bucket[i].length; k++) {
-                    if (point[k] !== bucket[i][k]) continue outer;
+            outer: for (let b = 0; b < bucket.length; b++) {
+                const offset = bucket[b];
+                for (let i = offset; i < offset + length * 4; i++) {
+                    const d = buffer.subarray(offset, i);
                 }
-                exists = true;
-                break outer;
+                alert(offset)
             }
-            if (!exists) bucket.push(point);
         }
     }
-    const objArray = map.values().toArray();
-    let uniqueItems = 0;
-    for (let i = 0; i < objArray.length; i++) uniqueItems += objArray[i].length;
-    const final = new Float32Array(uniqueItems * length);
-    let offset = 0;
-    for (let i = 0; i < objArray.length; i++) {
-        const bucket = objArray[i];
-        for (let b = 0; b < bucket.length; b++) {
-            for (let k = 0; k < bucket[b].length; k++) {
-                const index = offset + k;
-                final[index] = bucket[b][k];
-            }
-            offset += length;
-        }
-    }
-    flat = null;
-    return final;
+    // const objArray = map.values().toArray();
+    // let uniqueItems = 0;
+    // for (let i = 0; i < objArray.length; i++) uniqueItems += objArray[i].length;
+    // const final = new Float32Array(uniqueItems * length);
+    // let offset = 0;
+    // for (let i = 0; i < objArray.length; i++) {
+    //     const bucket = objArray[i];
+    //     for (let b = 0; b < bucket.length; b++) {
+    //         for (let k = 0; k < bucket[b].length; k++) {
+    //             const index = offset + k;
+    //             final[index] = bucket[b][k];
+    //         }
+    //         offset += length;
+    //     }
+    // }
+    // flat = null;
+    // return final;
 }
 export default class KDTree2 {
     #data;
