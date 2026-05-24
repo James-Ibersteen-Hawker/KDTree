@@ -40,11 +40,15 @@ async function validate(data, length) {
             if (!exists) bucket.push(byteStart);
         }
     }
-    let uniquecount = 0;
-    const flatmap = Array.from(map.values());
-    for (const bucket of flatmap) uniquecount += bucket.length;
-    for (let i = 0; i < uniquecount; i++) {
-        const 
+
+    const flatmap = Array.from(map.values()).flat();
+    const final = new Float32Array(flatmap.length * length);
+    for (let i = 0; i < final.length; i += length) {
+        alert(i)
+        const offset = flatmap[i / length];
+        for (let j = 0; j < length; j++) {
+            final[i + j] = flat[offset / length + j];
+        }
     }
 }
 export default class KDTree2 {
