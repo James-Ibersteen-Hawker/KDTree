@@ -12,44 +12,36 @@ const hash = xxhash();
 async function validate(data, length) {
     const { h32 } = await hash;
     const map = new Map();
-    let flat = new Float32Array(data.length * length);
+    const indices = [];
     for (let i = 0; i < data.length; i++) {
-        for (let k = 0; k < data[i].length; k++) {
-            flat[i * length + k] = data[i][k];
-        }
-    }
-    let buffer = new Uint8Array(flat.buffer);
-    for (let i = 0; i < flat.length; i += length) {
-        const byteStart = i * 4;
-        const byteEnd = byteStart + length * 4;
-        const point = buffer.subarray(byteStart, byteEnd);
+        const point = data[i];
         const key = h32(point);
         const bucket = map.get(key);
-        if (!bucket) map.set(key, [byteStart]);
-        else if (bucket) {
+        if (!bucket) {
+            indices.push(i);
+            map.set(key, [i])
+        } else {
             let exists = false;
-            outer: for (let b = 0; b < bucket.length; b++) {
-                const offset = bucket[b];
-                const innerPoint = buffer.subarray(offset, offset + (length * 4));
-                for (let i = 0; i < innerPoint.length; i++) {
-                    if (innerPoint[i] !== point[i]) continue outer;
-                }
+            outer: for (let q = 0; q < bucket.length; q++) {
+                const bPoint = data[bucket[q]];
+                for (let d = 0; d < length; d++) {
+                    if (bPoint[d] !== point[d]) continue outer;
+                } //if any is different, ignore. If all are equal, break.
                 exists = true;
                 break outer;
             }
-            if (!exists) bucket.push(byteStart);
+            if (!exists) {
+                indices.push(i)
+                bucket.push(i);
+            }
         }
     }
-
-    const flatmap = Array.from(map.values()).flat();
-    const final = new Float32Array(flatmap.length * length);
-    for (let i = 0; i < final.length; i += length) {
-        alert(i)
-        const offset = flatmap[i / length];
-        for (let j = 0; j < length; j++) {
-            final[i + j] = flat[offset / length + j];
-        }
+    const final = new Float32Array(indices.length * length)
+    for (let i = 0; i < indices.length; i++) {
+        const point = data[indices[i]];
+        for (let d = 0; d < length; d++) final[i * length + d] = point[d];
     }
+    return final;
 }
 export default class KDTree2 {
     #data;
