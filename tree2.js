@@ -55,6 +55,8 @@ export default class KDTree2 {
         this.#length = data[0]?.length;
         if (this.#length == null) throw new Error("Invalid starting length");
         this.#data = await validate(data, this.#length);
+        this.#indexes = Array.from({length: this.#data.length / this.#length}, (_, i) => i)
+        alert(this.#indexes)
         //now it is all the proper length
     }
 }
