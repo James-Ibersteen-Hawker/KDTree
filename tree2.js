@@ -45,18 +45,25 @@ async function validate(data, length) {
 }
 export default class KDTree2 {
     #data;
-    #indexes;
+    #vector_indexes;
+    #scalar_indexes;
     #length;
-    constructor(data) {
-        this.ready = this.#init(data);
+    static async initFrom(data) {
+        const kdtree = new KDTree2();
+        await kdtree.set(data);
+        return kdtree;
     }
+    constructor() {}
     async #init(data) {
         if (!data[0]) throw new Error("First element doesn't exist");
         this.#length = data[0]?.length;
         if (this.#length == null) throw new Error("Invalid starting length");
         this.#data = await validate(data, this.#length);
-        this.#indexes = Array.from({length: this.#data.length / this.#length}, (_, i) => i)
-        alert(this.#indexes)
+        this.#vector_indexes = Uint32Array.from({length: this.#data.length / this.#length}, (_, i) => i);
         //now it is all the proper length
+    }
+    async set(data) {
+        if (!data[0] || data.length <= 1) throw new Error("Invalid Data");
+        await this.#init(data);
     }
 }

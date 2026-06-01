@@ -10,14 +10,8 @@
       import KDTree2 from "./tree2.js"
       import { testSet } from "./data.js";
       try {
-      // const testTree = new KDTree(testSet);
       const q = [100,0,0];
-      // const result = testTree.search(q);
-      // const serialized = testTree.serialize();
-      // const newTree = new KDTree();
-      // newTree.initFrom(serialized)
-      // document.getElementById("test").textContent = serialized;
-      const tree2 = new KDTree2(testSet)
+      const tree2 = KDTree2.initFrom(testSet)
       } catch (err) {
         alert (err)
       }
