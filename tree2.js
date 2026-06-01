@@ -46,8 +46,9 @@ async function validate(data, length) {
 export default class KDTree2 {
     #data;
     #vector_indexes;
-    #scalar_indexes;
     #length;
+    #nodes;
+    #leafsize;
     static async initFrom(data) {
         const kdtree = new KDTree2();
         await kdtree.set(data);
@@ -60,6 +61,9 @@ export default class KDTree2 {
         if (this.#length == null) throw new Error("Invalid starting length");
         this.#data = await validate(data, this.#length);
         this.#vector_indexes = Uint32Array.from({length: this.#data.length / this.#length}, (_, i) => i);
+        this.#leafsize = 10;
+        this.#nodes = new Uint32Array(2 * Math.ceil(this.#data.length / this.#leafsize) - 1);
+        alert(this.#nodes.length)
         //now it is all the proper length
     }
     async set(data) {
