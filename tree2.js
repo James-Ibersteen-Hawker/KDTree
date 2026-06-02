@@ -45,7 +45,7 @@ async function validate(data, length) {
 }
 export default class KDTree2 {
     #data;
-    #vector_indexes;
+    #indexes;
     #length;
     #nodes;
     #leafsize;
@@ -67,7 +67,7 @@ export default class KDTree2 {
         this.#length = data[0]?.length;
         if (this.#length == null) throw new Error("Invalid starting length");
         this.#data = await validate(data, this.#length);
-        this.#vector_indexes = Uint32Array.from({length: this.#data.length / this.#length}, (_, i) => i);
+        this.#indexes = Uint32Array.from({length: this.#data.length / this.#length}, (_, i) => i);
         this.#leafsize = 10;
         const maxnodecount = 2 * Math.ceil(this.#data.length / this.#leafsize) - 1;
         this.#pivots = new Uint32Array(maxnodecount); //node 17 is pivots[17]
@@ -79,9 +79,13 @@ export default class KDTree2 {
         this.#nodeCount = 0;
         //all of these ...[17] combine to create parallel object properties stored in Arrays.
         //I need a list of node indexes, and somehow attribute those indexes to point ranges
+        this.#assemble(this.#indexes);
     }
     async set(data) {
         if (!data[0] || data.length <= 1) throw new Error("Invalid Data");
         await this.#init(data);
+    }
+    #assemble(data) {
+
     }
 }
