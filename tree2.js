@@ -50,6 +50,12 @@ export default class KDTree2 {
     #nodes;
     #leafsize;
     #nodeCount;
+    #pivots;
+    #maxes;
+    #mins;
+    #left;
+    #right;
+    #axis;
     static async initFrom(data) {
         const kdtree = new KDTree2();
         await kdtree.set(data);
