@@ -49,6 +49,7 @@ export default class KDTree2 {
     #length;
     #nodes;
     #leafsize;
+    #nodeCount;
     static async initFrom(data) {
         const kdtree = new KDTree2();
         await kdtree.set(data);
@@ -69,6 +70,7 @@ export default class KDTree2 {
         this.#left = new Uint32Array(maxnodecount); //node 17 is left[17]
         this.#right = new Uint32Array(maxnodecount); //node 17 is right[17]
         this.#axis = new Uint32Array(maxnodecount); //node 17 is axis[17]
+        this.#nodeCount = 0;
         //all of these ...[17] combine to create parallel object properties stored in Arrays.
         //I need a list of node indexes, and somehow attribute those indexes to point ranges
     }

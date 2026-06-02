@@ -3,17 +3,23 @@
   <head>
     <title>NTree</title>
   </head>
-  <body style="color: white; background: black;">
+  <body style="color: white; background: black">
     <p id="test"></p>
     <script type="module">
-      import { KDTree } from "./kdtree.js";
-      import KDTree2 from "./tree2.js"
-      import { testSet } from "./data.js";
+      // import { KDTree } from "./kdtree.js";
+      // import KDTree2 from "./tree2.js";
+      // import { testSet } from "./data.js";
       try {
-      const q = [100,0,0];
-      const tree2 = KDTree2.initFrom(testSet)
-      } catch (err) {
-        alert (err)
+        const list = [];
+        for (let i = 0; i < 50000; i++) {
+          const x = Math.round(Math.random() * 300);
+          const y = Math.round(Math.random() * 300);
+          const z = Math.round(Math.random() * 300);
+          list.push([x, y, z]);
+        }
+        document.getElementById("test").textContent = JSON.stringify(list);
+      } catch (error) {
+        alert(error);
       }
     </script>
   </body>
