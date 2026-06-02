@@ -6,18 +6,15 @@
   <body style="color: white; background: black">
     <p id="test"></p>
     <script type="module">
-      // import { KDTree } from "./kdtree.js";
+      import { KDTree } from "./kdtree.js";
+      import { testset2 } from "./benchmark.js"
       // import KDTree2 from "./tree2.js";
       // import { testSet } from "./data.js";
       try {
-        const list = [];
-        for (let i = 0; i < 50000; i++) {
-          const x = Math.round(Math.random() * 300);
-          const y = Math.round(Math.random() * 300);
-          const z = Math.round(Math.random() * 300);
-          list.push([x, y, z]);
-        }
-        document.getElementById("test").textContent = JSON.stringify(list);
+        const Q = [100,100,100]
+        const TREE1 = new KDTree(testset2);
+        const RESULT1 = TREE1.search(Q);
+        alert(RESULT1)
       } catch (error) {
         alert(error);
       }
