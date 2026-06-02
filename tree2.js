@@ -132,15 +132,20 @@ export default class KDTree2 {
         //I need a list of node indexes, and somehow attribute those indexes to point range.
         this.#nodeCount = 0;
         this.#current_axis = 0;
-        let max = this.#data[this.#current_axis]; //added benefit of always being the first point since axis loops around
-        let min = this.#data[this.#current_axis]; //added benefit of always being the first point since axis loops around
+        const max = this.#data.slice(this.#indexes[0], this.#indexes[0] + this.#length);
+        const min = this.#data.slice(this.#indexes[0], this.#indexes[0] + this.#length);
         for (let i = 0; i < this.#indexes.length; i++) {
             const index = this.#indexes[i];
-            const scalar = this.#data[index * this.#length + this.#current_axis]
+            const start = index * this.#length;
+            const end = start + this.#length
+            const point = this.#data.subarray(start, end);
+            for (let d = 0; d < this.#length; d++) {
+                if (point[d] > max[d]) max[d] = point[d];
+                else if (point[d] < min[d]) min[d] = point[d];
+            }
             //index is the point, then length is the stride, and axis is the value
-            if (scalar > max) max = scalar;
-            else if (scalar < min) min = scalar;
         }
+        alert([max, min])
         this.#assemble(this.#indexes, max, min, 0, this.#indexes.length - 1);
     }
     /**
@@ -163,6 +168,8 @@ export default class KDTree2 {
             console.log("leaf");
             return;
         }
+        const centerIndex = Math.floor((start + end) / 2);
+
         // quickselect(set, start, end, pivotIndex, this.#current_axis, this.#data, this.#length)
         this.#current_axis = this.#current_axis + 1 % this.#length;
     }
