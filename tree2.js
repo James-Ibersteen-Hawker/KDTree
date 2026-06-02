@@ -1,4 +1,3 @@
-// @ts-check;
 "use strict";
 /*
 Plan:
@@ -11,8 +10,8 @@ Plan:
 import xxhash from "https://unpkg.com/xxhash-wasm/esm/xxhash-wasm.js";
 const hash = xxhash();
 /**
- * @param {Number} a index 1
- * @param {Number} b index 2
+ * @param {number} a index 1
+ * @param {number} b index 2
  */
 const swap = (arr, a, b) => [arr[a], arr[b]] = [arr[b], arr[a]];
 function partition(set, start, end, p, data, axis, length) {
@@ -28,6 +27,9 @@ function partition(set, start, end, p, data, axis, length) {
     swap(set, storeIndex, end);
     return storeIndex;
 }
+/*
+An algorithm for partitioning the list around medians (not sorting it though)
+*/
 function quickselect(set, start, end, i, axis, data, length) {
     while (true) {
         if (start === end) return set[start];
@@ -46,9 +48,13 @@ function quickselect(set, start, end, i, axis, data, length) {
 /**
  * 
  * @param {*} data input array for deduplicating
- * @param {Number} length length of coordinate / number of axes 
+ * @param {number} length length of coordinate / number of axes 
  * @returns Float32Array[x0, y0, z0, x1, y1, z1...]
  */
+/*
+Deduper using XXHASH, to act as a list fixer. Includes hash checks, using a map{} for storage
+Ultimately converts input into Float32Array[]
+*/
 async function validate(data, length) {
     const { h32 } = await hash;
     const map = new Map();
@@ -115,11 +121,11 @@ export default class KDTree2 {
         this.#indexes = Uint32Array.from({ length: this.#data.length / this.#length }, (_, i) => i);
         this.#leafsize = 10;
         const maxnodecount = 2 * Math.ceil(this.#data.length / this.#leafsize) - 1;
-        //AoS structure - Parallel Arrays
+        //SoA structure - Parallel Arrays
         this.#pivots = new Uint32Array(maxnodecount); //node 17 is pivots[17]
         this.#maxes = new Float32Array(maxnodecount); //node 17 is maxes[17]
-        this.#mins = new Float32Array(maxnodecount); //node 17 is mins[17]
-        this.#left = new Uint32Array(maxnodecount); //node 17 is left[17]
+        this.#mins = new Float32Array(maxnodecount * this.#length); //node 17 is mins[17]
+        this.#left = new Uint32Array(maxnodecount *this.#length); //node 17 is left[17]
         this.#right = new Uint32Array(maxnodecount); //node 17 is right[17]
         this.#axis = new Uint32Array(maxnodecount); //node 17 is axis[17]
         //all of these ...[17] combine to create parallel object properties stored in Arrays.
@@ -135,8 +141,7 @@ export default class KDTree2 {
             if (scalar > max) max = scalar;
             else if (scalar < min) min = scalar;
         }
-        quickselect(this.#indexes, 0, this.#indexes.length - 1, 29, 0, this.#data, this.#length)
-        // this.#assemble(this.#indexes, max, min, 0, this.#indexes.length - 1);
+        this.#assemble(this.#indexes, max, min, 0, this.#indexes.length - 1);
     }
     /**
      * @param {Array} data replace the old set
@@ -148,16 +153,17 @@ export default class KDTree2 {
     /**
      * 
      * @param {Uint32Array} set the array of indexes to data[]
-     * @param {Number} max the local maximum
-     * @param {Number} min the local minimum
-     * @param {Number} start the start of partitioning segment
-     * @param {Number} end the end of partitioning segment
+     * @param {number} max the local maximum
+     * @param {number} min the local minimum
+     * @param {number} start the start of partitioning segment
+     * @param {number} end the end of partitioning segment
      */
     #assemble(set, max, min, start, end) {
         if (end - start <= this.#leafsize) {
             console.log("leaf");
             return;
         }
+        // quickselect(set, start, end, pivotIndex, this.#current_axis, this.#data, this.#length)
         this.#current_axis = this.#current_axis + 1 % this.#length;
     }
 }
