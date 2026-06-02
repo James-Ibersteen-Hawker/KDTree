@@ -7,14 +7,18 @@
     <p id="test"></p>
     <script type="module">
       import { KDTree } from "./kdtree.js";
-      import { testset2 } from "./benchmark.js"
+      import { testset2 } from "./benchmark.js";
+      import { testSet } from "./data.js"
       import KDTree2 from "./tree2.js";
-      // import { testSet } from "./data.js";
       try {
-        const Q = [100,100,100]
-        const TREE1 = new KDTree(testset2);
-        const RESULT1 = TREE1.search(Q);
-        alert(RESULT1)
+        async function tree2() {
+          const TREE2 = await KDTree2.initFrom(testSet);
+        }
+        function tree1() {
+          const TREE1 = new KDTree(testset2);
+        }
+        const Q = [100, 100, 100];
+        tree2();
       } catch (error) {
         alert(error);
       }
