@@ -215,7 +215,7 @@ export default class KDTree2 {
             return number;
         });
         const valid = validateKD(this.#indexes, this.#data, this.#length, 0, this.#indexes.length - 1, this.#current_axis);
-        alert(valid)
+        alert(this.#axis)
     }
     /**
      * @param {Array} data replace the old set
@@ -241,12 +241,12 @@ export default class KDTree2 {
         quickselect(set, start, end, center, axis, this.#data, this.#length); //rearranges [start - end] of the list
         /*
         Each node requires:
-        #pivots[ node ]
-        #left[ node ]
-        #right[ node ]
-        #maxes[ node ]
-        #mins[ node ]
-        #axis[ node ]
+        #pivots[ node ] done
+        #left[ node ] done
+        #right[ node ] done
+        #maxes[ node ] done
+        #mins[ node ] done
+        #axis[ node ] done
         */
         const pivot = set[center];
         this.#pivots[node] = pivot; //index of pivot in this.#data
@@ -260,6 +260,7 @@ export default class KDTree2 {
         const right_mins = mins.slice();
         left_maxes[axis] = this.#data[pivot * this.#length + axis]; //pivot value
         right_mins[axis] = this.#data[pivot * this.#length + axis]; //pivot value
+        this.#left[node] = node + 1;
         this.#assemble(
             set,
             mins,
@@ -268,6 +269,7 @@ export default class KDTree2 {
             center - 1, //pivot exclusive
             newAxis
         )
+        this.#right[node] = this.#nodeCount + 1
         this.#assemble(
             set,
             right_mins,
