@@ -28,6 +28,7 @@ function partition(set, start, end, p, data, axis, length) {
     return storeIndex;
 }
 /**
+ * Median of three pivot selection
  * @param {Uint32Array} set index set
  * @param {number} start start of selection
  * @param {number} end end of selection
@@ -69,15 +70,11 @@ function quickselect(set, start, end, i, axis, data, length) {
     }
 }
 /**
- * 
+ * Uses xxhash to dedupe the input list
  * @param {*} data input array for deduplicating
  * @param {number} length length of coordinate / number of axes 
- * @returns Float32Array[x0, y0, z0, x1, y1, z1...]
+ * @returns flatpacked Float32Array[x0, y0, z0, x1, y1, z1...]
  */
-/*
-Deduper using XXHASH, to act as a list fixer. Includes hash checks, using a map{} for storage
-Ultimately converts input into Float32Array[]
-*/
 async function validate(data, length) {
     const { h32 } = await hash;
     const map = new Map();
@@ -156,7 +153,6 @@ export default class KDTree2 {
     #data;
     #indexes;
     #length;
-    #nodes;
     #leafsize;
     #nodeCount;
     #pivots;
@@ -236,9 +232,18 @@ export default class KDTree2 {
      * @param {number} axis current axis
      */
     #assemble(set, mins, maxes, start, end, axis) {
-        if (end - start === 0) return -2;
-        if (end - start <= this.#leafsize) return -1;
+        if (end < start) return -2;
         const node = this.#nodeCount++;
+        if (end - start <= this.#leafsize) {
+            this.#node_start[node] = start;
+            this.#node_end[node] = end;
+            for (let d = 0; d < this.#length; d++) {
+                const pos = node * this.#length + d; //embed the current max and min into the slot
+                this.#maxes[pos] = maxes[d];
+                this.#mins[pos] = mins[d];
+            }
+            return node;
+        };
         const center = Math.floor((start + end) / 2);
         const newAxis = (axis + 1) % this.#length;
         quickselect(set, start, end, center, axis, this.#data, this.#length); //rearranges [start - end] of the list
