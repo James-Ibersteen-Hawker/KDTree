@@ -27,22 +27,45 @@ function partition(set, start, end, p, data, axis, length) {
     swap(set, storeIndex, end);
     return storeIndex;
 }
+/**
+ * @param {Uint32Array} set index set
+ * @param {number} start start of selection
+ * @param {number} end end of selection
+ * @param {number} data list of points flatpacked
+ * @param {number} axis given axis
+ * @param {number} length length of stride
+ * @returns best index of three[start, end, mid]
+ */
+function medianOfThree(set, start, end, data, axis, length) {
+    const mid = Math.floor((start + end) / 2);
+    const a = data[set[start] * length + axis];
+    const b = data[set[mid] * length + axis];
+    const c = data[set[end] * length + axis];
+    if (a < b) {
+        if (b < c) return mid; //a < b < c
+        if (a < c) return end; //a < b <= c
+        return start;
+    } else {
+        if (a < c) return start; //b < a < c
+        if (b < c) return end; //b < a <= c
+        return mid;
+    }
+}
 /*
-An algorithm for partitioning the list around medians (not sorting it though)
+Lomuto style partitioning
+Invariant: P is at given {i}
+Guarantees elements[axis] < pivot on the left and > pivot on the right
 */
 function quickselect(set, start, end, i, axis, data, length) {
+    if (start > end) throw new RangeError("Negative region");
+    if (i < start || i > end) throw new RangeError("Out of bounds");
     while (true) {
-        if (start === end) return set[start];
-        const pivotIndex = Math.floor((start + end) / 2);
-        const newPivotIndex = partition(set, start, end, pivotIndex, data, axis, length);
-        if (i === newPivotIndex) {
-            return set[i];
-        }
-        if (i < newPivotIndex) {
-            end = newPivotIndex - 1;
-        } else {
-            start = newPivotIndex + 1;
-        }
+        if (start === end) break;
+        const pivotIndex = medianOfThree(set, start, end, data, axis, length)
+        const newPivotIndex = partition(set, start, end, pivotIndex, data, axis, length); //determine recursion bias
+        if (i === newPivotIndex) break;
+        else if (i < newPivotIndex) end = newPivotIndex - 1;
+        else if (i > newPivotIndex) start = newPivotIndex + 1;
     }
 }
 /**
@@ -102,7 +125,7 @@ function validateKD(indexes, data, dims, start = 0, end = indexes.length - 1, ax
         const value = data[pointIndex * dims + axis];
 
         if (value > pivotValue) {
-            console.error(
+            alert(
                 `Left violation at ${i}: axis=${axis}, value=${value}, pivot=${pivotValue}`
             );
             return false;
@@ -115,7 +138,7 @@ function validateKD(indexes, data, dims, start = 0, end = indexes.length - 1, ax
         const value = data[pointIndex * dims + axis];
 
         if (value < pivotValue) {
-            console.error(
+            alert(
                 `Right violation at ${i}: axis=${axis}, value=${value}, pivot=${pivotValue}`
             );
             return false;
@@ -171,7 +194,7 @@ export default class KDTree2 {
         this.#axis = new Uint32Array(maxnodecount); //node 17 is axis[17]
         //all of these ...[17] combine to create parallel object properties stored in Arrays.
         //I need a list of node indexes, and somehow attribute those indexes to point range.
-        this.#nodeCount = -1;
+        this.#nodeCount = 0;
         this.#current_axis = 0;
         const maxes = this.#data.slice(this.#indexes[0], this.#indexes[0] + this.#length);
         const mins = this.#data.slice(this.#indexes[0], this.#indexes[0] + this.#length);
@@ -186,7 +209,7 @@ export default class KDTree2 {
             }
             //index is the point, then length is the stride, and axis is the value
         }
-        this.#assemble(this.#indexes, maxes, mins, 0, this.#indexes.length - 1, this.#current_axis);
+        this.#assemble(this.#indexes, mins, maxes, 0, this.#indexes.length - 1, this.#current_axis);
         this.assembly = Array.from(this.#indexes).map(e => {
             const number = this.#data[e * this.#length + 2];
             return number;
@@ -204,52 +227,55 @@ export default class KDTree2 {
     /**
      * 
      * @param {Uint32Array} set the array of indexes to data[]
-     * @param {number} maxes the local maximum
-     * @param {number} mins the local minimum
+     * @param {Float32Array} mins the local maximum
+     * @param {Float32Array} maxes the local minimum
      * @param {number} start the start of partitioning segment
      * @param {number} end the end of partitioning segment
      * @param {number} axis current axis
      */
-    #assemble(set, maxes, mins, start, end, axis) {
+    #assemble(set, mins, maxes, start, end, axis) {
+        alert(axis)
+        if (end - start <= this.#leafsize) return 0;
         const node = this.#nodeCount++;
-        if (end - start <= this.#leafsize) return node;
-        const centerIndex = Math.floor((start + end) / 2);
-        quickselect(set, start, end, centerIndex, axis, this.#data, this.#length);
+        const center = Math.floor((start + end) / 2);
+        const newAxis = (axis + 1) % this.#length;
+        quickselect(set, start, end, center, axis, this.#data, this.#length); //rearranges [start - end] of the list
         /*
         Each node requires:
-        #pivots[]
-        #left[]
-        #right[]
-        #maxes[]
-        #mins[]
-        #axis[]
+        #pivots[ node ]
+        #left[ node ]
+        #right[ node ]
+        #maxes[ node ]
+        #mins[ node ]
+        #axis[ node ]
         */
-        const pivot = this.#indexes[centerIndex]
-        this.#pivots[node] = pivot;
+        const pivot = this.#indexes[center]
+        this.#pivots[node] = pivot; //index of pivot in this.#data
         this.#axis[node] = axis;
         for (let d = 0; d < this.#length; d++) {
-            this.#maxes[node * this.#length + d] = maxes[d];
-            this.#mins[node * this.#length + d] = mins[d];
+            const pos = node * this.#length + d; //embed the current max and min into the slot
+            this.#maxes[pos] = maxes[d];
+            this.#mins[pos] = mins[d];
         }
-        const lMaxes = maxes.slice();
-        const rMins = mins.slice();
-        lMaxes[axis] = this.#data[pivot * this.#length + axis];
-        rMins[axis] = this.#data[pivot * this.#length + axis];
-        this.#assemble(
-            set, //set of indexes
-            lMaxes, //maxes of right side continue
-            mins, //modified right side minimums
-            start, //start of dataset partition
-            centerIndex - 1, //end of dataset partition
-            (axis + 1) % this.#length //rotated axis
-        );
+        const left_maxes = maxes.slice(); //[rMins, P) - P - [P, lMaxes)
+        const right_mins = mins.slice();
+        left_maxes[axis] = this.#data[pivot * this.#length + axis]; //pivot value
+        right_mins[axis] = this.#data[pivot * this.#length + axis]; //pivot value
         this.#assemble(
             set,
+            mins,
+            left_maxes,
+            start,
+            center - 1, //pivot exclusive
+            newAxis
+        )
+        this.#assemble(
+            set,
+            right_mins,
             maxes,
-            rMins,
-            centerIndex + 1,
+            center + 1, //pivot exclusive
             end,
-            (axis + 1) % this.#length
-        );
+            newAxis
+        )
     }
 }
