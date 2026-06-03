@@ -13,6 +13,13 @@ const hash = xxhash();
  * @param {number} a index 1
  * @param {number} b index 2
  */
+function distance(p1, p2) {
+    let d = 0;
+    for (let i = 0; i < p1.length; i++) {
+        d += (p1[i] - p2[i]) ** 2;
+    }
+    return d;
+}
 const swap = (arr, a, b) => [arr[a], arr[b]] = [arr[b], arr[a]];
 function partition(set, start, end, p, data, axis, length) {
     const pivotValue = data[set[p] * length + axis]; //p is POSITION, of INDEX, in DATA
@@ -251,16 +258,43 @@ export default class KDTree2 {
     search(q /* add axis as a parameter*/) { //add single-axis search afterwards
         if (!Array.isArray(q)) throw new Error("Query is not correct type")
         if (q.length !== this.#length) throw new Error("Query is of incorrect length");
-        if (!this.indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
+        if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
         const result = this.#search(q);
         return result;
     }
-    #search(q, node = 0) {
-        const pivot = this.#pivots[node];
-        const left = this.#left[node];
-        const right = this.#right[node];
-        if (left === -2 || right === -2) {
+    #search(q, nodeID = 0) {
+        if (nodeID === -2) return "NO NODE"; //debugging for now
+        const length = this.#length; //for brevity and ease of reading
+        const start = this.#node_start[nodeID];
+        const end = this.#node_end[nodeID];
+        if (end - start <= this.#leafsize) {
             alert("leaf!");
+            return;
         }
+        const pack_offset = nodeID * length;
+        const pivot = this.#pivots[nodeID];
+        const axis = this.#axis[nodeID];
+        const left = this.#left[nodeID];
+        const right = this.#right[nodeID];
+        const pivot_pos = pivot * length
+        const pvt_val = this.#data[pivot_pos + axis];
+        const go_left = q[axis] < pvt_val;
+        const side = go_left ? left : right;
+        const other = go_left ? right : left;
+        const result = this.#search(q, side);
+        let best_d = result[0];
+        let best_p = result[1];
+        const pivot_d = distance(
+            q,
+            this.#data.subarray(pivot_pos, pivot_pos + length)
+        )
+        if (pivot_d < best_d) {
+            best_d = pivot_d;
+            best_p = pivot;
+        }
+        if (!other) /* No alternate side */ {
+            return [best_d, best_p];
+        }
+        const otherD = 0; //distance to other side, 0 is a placeholder
     }
 }
