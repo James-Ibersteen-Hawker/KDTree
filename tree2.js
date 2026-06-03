@@ -113,7 +113,7 @@ async function validate(data, length) {
     return final;
 }
 function validateKD(indexes, data, dims, start = 0, end = indexes.length - 1, axis = 0) {
-    if (start >= end) return true;
+    if (end - start <= 10) return true;
 
     const mid = Math.floor((start + end) / 2);
     const pivotIndex = indexes[mid];
@@ -234,7 +234,6 @@ export default class KDTree2 {
      * @param {number} axis current axis
      */
     #assemble(set, mins, maxes, start, end, axis) {
-        alert(axis)
         if (end - start <= this.#leafsize) return 0;
         const node = this.#nodeCount++;
         const center = Math.floor((start + end) / 2);
@@ -249,7 +248,7 @@ export default class KDTree2 {
         #mins[ node ]
         #axis[ node ]
         */
-        const pivot = this.#indexes[center]
+        const pivot = set[center];
         this.#pivots[node] = pivot; //index of pivot in this.#data
         this.#axis[node] = axis;
         for (let d = 0; d < this.#length; d++) {
