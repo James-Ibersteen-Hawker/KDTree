@@ -109,46 +109,6 @@ async function validate(data, length) {
     }
     return final;
 }
-// function validateKD(indexes, data, dims, start = 0, end = indexes.length - 1, axis = 0) {
-//     if (end - start <= 10) return true;
-
-//     const mid = Math.floor((start + end) / 2);
-//     const pivotIndex = indexes[mid];
-//     const pivotValue = data[pivotIndex * dims + axis];
-
-//     // Verify left partition
-//     for (let i = start; i < mid; i++) {
-//         const pointIndex = indexes[i];
-//         const value = data[pointIndex * dims + axis];
-
-//         if (value > pivotValue) {
-//             alert(
-//                 `Left violation at ${i}: axis=${axis}, value=${value}, pivot=${pivotValue}`
-//             );
-//             return false;
-//         }
-//     }
-
-//     // Verify right partition
-//     for (let i = mid + 1; i <= end; i++) {
-//         const pointIndex = indexes[i];
-//         const value = data[pointIndex * dims + axis];
-
-//         if (value < pivotValue) {
-//             alert(
-//                 `Right violation at ${i}: axis=${axis}, value=${value}, pivot=${pivotValue}`
-//             );
-//             return false;
-//         }
-//     }
-
-//     const nextAxis = (axis + 1) % dims;
-
-//     return (
-//         validateKD(indexes, data, dims, start, mid - 1, nextAxis) &&
-//         validateKD(indexes, data, dims, mid + 1, end, nextAxis)
-//     );
-// }
 export default class KDTree2 {
     #data;
     #indexes;
@@ -287,5 +247,20 @@ export default class KDTree2 {
             newAxis
         )
         return node;
+    }
+    search(q /* add axis as a parameter*/) { //add single-axis search afterwards
+        if (!Array.isArray(q)) throw new Error("Query is not correct type")
+        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
+        if (!this.indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
+        const result = this.#search(q);
+        return result;
+    }
+    #search(q, node = 0) {
+        const pivot = this.#pivots[node];
+        const left = this.#left[node];
+        const right = this.#right[node];
+        if (left === -2 || right === -2) {
+            alert("leaf!");
+        }
     }
 }
