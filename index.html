@@ -13,12 +13,14 @@
       try {
         const Q = [155, 340, 410];
         async function tree2() {
-          const TREE2 = await KDTree2.initFrom(testSet);
+          const TREE2 = await KDTree2.initFrom(testset2);
           const result = TREE2.search(Q);
           alert(result)
         }
         function tree1() {
           const TREE1 = new KDTree(testset2);
+          const result = TREE1.search(Q);
+          alert(result)
         }
         tree2();
       } catch (error) {

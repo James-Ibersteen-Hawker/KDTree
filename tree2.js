@@ -9,18 +9,11 @@ Plan:
 */
 import xxhash from "https://unpkg.com/xxhash-wasm/esm/xxhash-wasm.js";
 const hash = xxhash();
-/**
- * @param {number} a index 1
- * @param {number} b index 2
- */
-function distance(p1, p2) {
-    let d = 0;
-    for (let i = 0; i < p1.length; i++) {
-        d += (p1[i] - p2[i]) ** 2;
-    }
-    return d;
+function swap(arr, a, b) {
+    const temp = arr[a];
+    arr[a] = arr[b];
+    arr[b] = temp;
 }
-const swap = (arr, a, b) => [arr[a], arr[b]] = [arr[b], arr[a]];
 function partition(set, start, end, p, data, axis, length) {
     const pivotValue = data[set[p] * length + axis]; //p is POSITION, of INDEX, in DATA
     swap(set, p, end);
@@ -254,12 +247,11 @@ export default class KDTree2 {
         const length = this.#length; //for brevity and ease of reading
         const start = this.#node_start[nodeID];
         const end = this.#node_end[nodeID];
-        if (end - start <= this.#leafsize) return this.#closest(q, start, end);
+        if (end - start < this.#leafsize) return this.#closest(q, start, end);
         const pivot = this.#pivots[nodeID];
         const axis = this.#axis[nodeID];
         const left = this.#left[nodeID];
         const right = this.#right[nodeID];
-        const pack_offset = nodeID * length;
         const pivot_pos = pivot * length
         const pvt_val = this.#data[pivot_pos + axis];
         const go_left = q[axis] < pvt_val;
