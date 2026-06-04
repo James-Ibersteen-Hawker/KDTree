@@ -260,22 +260,20 @@ export default class KDTree2 {
         if (q.length !== this.#length) throw new Error("Query is of incorrect length");
         if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
         const result = this.#search(q);
-        return result;
+        const final_d = result[0];
+        const final_p = result[1] * this.#length; //for now, incorporating the stride
+        return Array.from(this.#data.slice(final_p, final_p + this.#length));
     }
     #search(q, nodeID = 0) {
-        if (nodeID === -2) return "NO NODE"; //debugging for now
         const length = this.#length; //for brevity and ease of reading
         const start = this.#node_start[nodeID];
         const end = this.#node_end[nodeID];
-        if (end - start <= this.#leafsize) {
-            alert("leaf!");
-            return;
-        }
-        const pack_offset = nodeID * length;
+        if (end - start <= this.#leafsize) return this.#closest(q, start, end);
         const pivot = this.#pivots[nodeID];
         const axis = this.#axis[nodeID];
         const left = this.#left[nodeID];
         const right = this.#right[nodeID];
+        const pack_offset = nodeID * length;
         const pivot_pos = pivot * length
         const pvt_val = this.#data[pivot_pos + axis];
         const go_left = q[axis] < pvt_val;
@@ -284,17 +282,58 @@ export default class KDTree2 {
         const result = this.#search(q, side);
         let best_d = result[0];
         let best_p = result[1];
-        const pivot_d = distance(
-            q,
-            this.#data.subarray(pivot_pos, pivot_pos + length)
-        )
+        const pivot_d = distance(q, this.#data.subarray(pivot_pos, pivot_pos + length))
         if (pivot_d < best_d) {
             best_d = pivot_d;
             best_p = pivot;
         }
-        if (!other) /* No alternate side */ {
-            return [best_d, best_p];
+        if (!other || other === -2) return [best_d, best_p]; /* No alternate side */ 
+        const mins = this.#mins.subarray(pack_offset, pack_offset + length);
+        const maxes = this.#maxes.subarray(pack_offset, pack_offset + length);
+        const otherD = this.#bounds_distance(q, other);
+        if (otherD < best_d) {
+            const otherResult = this.#search(q, other);
+            const other_d = otherResult[0];
+            const other_p = otherResult[1];
+            if (other_d < best_d) {
+                best_d = other_d;
+                best_p = other_p;
+            }
         }
-        const otherD = 0; //distance to other side, 0 is a placeholder
+        return [best_d, best_p];
+    }
+    #bounds_distance(q, nodeID) { //distance to max / min (whichever is appropriate)
+        let dist = 0;
+        const node_offset = nodeID * this.#length;
+        for (let i = 0; i < this.#length; i++) {
+            let d = 0;
+            const min = this.#mins[node_offset + i]; //predefine to reduce lookups
+            const max = this.#maxes[node_offset + i];
+            const qi = q[i]
+            if (qi < min) d = min - qi;
+            else if (qi > max) d = qi - max;
+            dist += d * d;
+        }
+        return dist;
+    }
+    /**
+     * Finds the closest point based off of a list and query (brute force method)
+     * @param {*} q 
+     * @param {*} set 
+     */
+    #closest(q, start, end) {
+        //brute force
+        let best_d = Infinity;
+        let best_p = null;
+        for (let i = start; i < end; i++) {
+            const index = this.#indexes[i];
+            let dist = 0;
+            for (let d = 0; d < this.#length; d++) { //zero-allocation viewing
+                const value = this.#data[index * this.#length + d];
+                dist += (q[d] - value) * (q[d] - value);
+            }
+            if (dist < best_d) best_p = index; //returning index, final point is computed last
+        }
+        return [best_d, best_p];
     }
 }

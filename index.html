@@ -11,11 +11,12 @@
       import { testSet } from "./data.js"
       import KDTree2 from "./tree2.js";
       try {
-        const Q = [100, 100, 100];
+        const Q = [0, 0, 0];
         async function tree2() {
           const TREE2 = await KDTree2.initFrom(testSet);
           document.getElementById("test").textContent = TREE2.assembly;
-          TREE2.search(Q);
+          const result = TREE2.search(Q);
+          alert(result)
         }
         function tree1() {
           const TREE1 = new KDTree(testset2);
