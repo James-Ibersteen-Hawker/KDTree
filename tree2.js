@@ -153,7 +153,7 @@ export default class KDTree2 {
         //SoA structure - Parallel Arrays
         //pivot and axis - general data
         this.#pivots = new Uint32Array(maxnodecount);
-        this.#axis = new Uint32Array(maxnodecount);
+        this.#axis = new Uint8Array(maxnodecount);
         //maxes and mins, flatpacked
         this.#maxes = new Float32Array(maxnodecount * this.#length);
         this.#mins = new Float32Array(maxnodecount * this.#length);
@@ -185,6 +185,15 @@ export default class KDTree2 {
         if (!data[0] || data.length <= 1) throw new Error("Invalid Data");
         await this.#init(data);
     }
+    search(q /* add axis as a parameter*/) { //add single-axis search afterwards
+        if (!Array.isArray(q)) throw new Error("Query is not correct type")
+        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
+        if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
+        const result = this.#search(q);
+        const final_d = result[0];
+        const final_p = result[1] * this.#length; //for now, incorporating the stride
+        return Array.from(this.#data.slice(final_p, final_p + this.#length));
+    }
     /**
      * Assembles an implicit KDTree
      * 
@@ -200,43 +209,35 @@ export default class KDTree2 {
      */
     #assemble(set, mins, maxes, start, end, axis) {
         if (end < start) return -2;
+        const length = this.#length;
         const node = this.#nodeCount++;
+        this.#node_start[node] = start;
+        this.#node_end[node] = end;
         if (end - start <= this.#leafsize) {
-            this.#node_start[node] = start;
-            this.#node_end[node] = end;
-            for (let d = 0; d < this.#length; d++) {
-                const pos = node * this.#length + d; //embed the current max and min into the slot
+            const offset = node * length;
+            for (let d = 0; d < length; d++) {
+                const pos = offset + d; //embed the current max and min into the slot
                 this.#maxes[pos] = maxes[d];
                 this.#mins[pos] = mins[d];
             }
             return node;
         };
+        const data = this.#data;
         const center = Math.floor((start + end) / 2);
-        const newAxis = (axis + 1) % this.#length;
-        quickselect(set, start, end, center, axis, this.#data, this.#length); //rearranges [start - end] of the list
-        /*
-        Each node requires:
-        #pivots[ node ] done
-        #left[ node ] done
-        #right[ node ] done
-        #maxes[ node ] done
-        #mins[ node ] done
-        #axis[ node ] done
-        */
+        const newAxis = ++axis % length;
+        quickselect(set, start, end, center, axis, data, length); //rearranges [start - end] of the list
         const pivot = set[center];
         this.#pivots[node] = pivot; //index of pivot in this.#data
         this.#axis[node] = axis;
-        this.#node_start[node] = start;
-        this.#node_end[node] = end;
-        for (let d = 0; d < this.#length; d++) {
-            const pos = node * this.#length + d; //embed the current max and min into the slot
+        for (let d = 0; d < length; d++) {
+            const pos = node * length + d; //embed the current max and min into the slot
             this.#maxes[pos] = maxes[d];
             this.#mins[pos] = mins[d];
         }
         const left_maxes = maxes.slice(); //[rMins, P) - P - [P, lMaxes)
         const right_mins = mins.slice();
-        left_maxes[axis] = this.#data[pivot * this.#length + axis]; //pivot value
-        right_mins[axis] = this.#data[pivot * this.#length + axis]; //pivot value
+        left_maxes[axis] = this.#data[pivot * length + axis]; //pivot value
+        right_mins[axis] = this.#data[pivot * length + axis]; //pivot value
         this.#left[node] = this.#assemble(
             set,
             mins,
@@ -254,15 +255,6 @@ export default class KDTree2 {
             newAxis
         )
         return node;
-    }
-    search(q /* add axis as a parameter*/) { //add single-axis search afterwards
-        if (!Array.isArray(q)) throw new Error("Query is not correct type")
-        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
-        if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
-        const result = this.#search(q);
-        const final_d = result[0];
-        const final_p = result[1] * this.#length; //for now, incorporating the stride
-        return Array.from(this.#data.slice(final_p, final_p + this.#length));
     }
     #search(q, nodeID = 0) {
         const length = this.#length; //for brevity and ease of reading
@@ -282,14 +274,12 @@ export default class KDTree2 {
         const result = this.#search(q, side);
         let best_d = result[0];
         let best_p = result[1];
-        const pivot_d = distance(q, this.#data.subarray(pivot_pos, pivot_pos + length))
+        const pivot_d = this.#pivotDistance(q, pivot_pos)
         if (pivot_d < best_d) {
             best_d = pivot_d;
             best_p = pivot;
         }
-        if (!other || other === -2) return [best_d, best_p]; /* No alternate side */ 
-        const mins = this.#mins.subarray(pack_offset, pack_offset + length);
-        const maxes = this.#maxes.subarray(pack_offset, pack_offset + length);
+        if (other === -2) return [best_d, best_p]; /* No alternate side */ 
         const otherD = this.#bounds_distance(q, other);
         if (otherD < best_d) {
             const otherResult = this.#search(q, other);
@@ -323,17 +313,33 @@ export default class KDTree2 {
      */
     #closest(q, start, end) {
         //brute force
+        const length = this.#length;
+        const indexes = this.#indexes;
+        const data = this.#data;
         let best_d = Infinity;
         let best_p = null;
-        for (let i = start; i < end; i++) {
-            const index = this.#indexes[i];
+        for (let i = start; i <= end; i++) {
+            const index = indexes[i];
+            const offset = index * length;
             let dist = 0;
-            for (let d = 0; d < this.#length; d++) { //zero-allocation viewing
-                const value = this.#data[index * this.#length + d];
-                dist += (q[d] - value) * (q[d] - value);
+            for (let d = 0; d < length; d++) { //zero-allocation viewing
+                const delta = q[d] - data[offset + d];
+                dist += delta * delta;
+                if (dist >= best_d) break;
             }
-            if (dist < best_d) best_p = index; //returning index, final point is computed last
+            if (dist < best_d) {
+                best_p = index;
+                best_d = dist;
+            } //returning index, final point is computed last
         }
         return [best_d, best_p];
+    }
+    #pivotDistance(q, p) {
+        let dist = 0;
+        for (let i = 0; i < this.#length; i++) {
+            const scalar = this.#data[p + i];
+            dist += (q[i] - scalar) * (q[i] - scalar);
+        }
+        return dist;
     }
 }
