@@ -130,7 +130,6 @@ export default class KDTree2 {
     #axis;
     #node_start;
     #node_end;
-    assembly;
     /**
      * @param {Array} data Array input of equal lengths
      * @returns Promise - await KDTree
@@ -176,7 +175,6 @@ export default class KDTree2 {
             } //index is the point, then length is the stride, and axis is the value
         }
         this.#assemble(this.#indexes, mins, maxes, 0, this.#indexes.length - 1, 0);
-        this.assembly = Array.from(this.#indexes, e => this.#data[e * this.#length + 2]);
     }
     /**
      * @param {Array} data replace the old set
@@ -208,53 +206,49 @@ export default class KDTree2 {
      * @param {number} axis current axis
      */
     #assemble(set, mins, maxes, start, end, axis) {
-        if (end < start) return -2;
+        if (end < start) return -2; //initial defence
+
         const length = this.#length;
         const node = this.#nodeCount++;
+
+        //define node bounds
         this.#node_start[node] = start;
         this.#node_end[node] = end;
-        if (end - start <= this.#leafsize) {
-            const offset = node * length;
-            for (let d = 0; d < length; d++) {
-                const pos = offset + d; //embed the current max and min into the slot
-                this.#maxes[pos] = maxes[d];
-                this.#mins[pos] = mins[d];
-            }
-            return node;
-        };
-        const data = this.#data;
-        const center = Math.floor((start + end) / 2);
-        const newAxis = ++axis % length;
-        quickselect(set, start, end, center, axis, data, length); //rearranges [start - end] of the list
-        const pivot = set[center];
-        this.#pivots[node] = pivot; //index of pivot in this.#data
-        this.#axis[node] = axis;
+
+        const offset = node * length;
         for (let d = 0; d < length; d++) {
-            const pos = node * length + d; //embed the current max and min into the slot
+            const pos = offset + d;
             this.#maxes[pos] = maxes[d];
             this.#mins[pos] = mins[d];
         }
-        const left_maxes = maxes.slice(); //[rMins, P) - P - [P, lMaxes)
+
+        if (end - start < this.#leafsize) return node; //if leaf
+
+        const data = this.#data;
+        const center = Math.floor((start + end) / 2);
+        const newAxis = (axis + 1) % length;
+
+        //rearranges [start - end] of the list
+        quickselect(set, start, end, center, axis, data, length);
+
+        const pivot = set[center];
+        this.#pivots[node] = pivot; //index of pivot in this.#data
+        this.#axis[node] = axis;
+        
+        //[rMins, P) - P - [P, lMaxes)
+        const left_maxes = maxes.slice();
         const right_mins = mins.slice();
-        left_maxes[axis] = this.#data[pivot * length + axis]; //pivot value
-        right_mins[axis] = this.#data[pivot * length + axis]; //pivot value
-        this.#left[node] = this.#assemble(
-            set,
-            mins,
-            left_maxes,
-            start,
-            center - 1, //pivot exclusive
-            newAxis
-        )
-        this.#right[node] = this.#assemble(
-            set,
-            right_mins,
-            maxes,
-            center + 1, //pivot exclusive
-            end,
-            newAxis
-        )
-        return node;
+
+        //change bounds to fit the pivot value
+        const pivotValue = data[pivot * length + axis]
+        left_maxes[axis] = pivotValue;
+        right_mins[axis] = pivotValue;
+
+        //recursive assembly
+        this.#left[node] = this.#assemble(set, mins, left_maxes, start, center - 1, newAxis);
+        this.#right[node] = this.#assemble(set, right_mins, maxes, center + 1, end, newAxis);
+
+        return node; //return node id for the proper offset
     }
     #search(q, nodeID = 0) {
         const length = this.#length; //for brevity and ease of reading
@@ -279,7 +273,7 @@ export default class KDTree2 {
             best_d = pivot_d;
             best_p = pivot;
         }
-        if (other === -2) return [best_d, best_p]; /* No alternate side */ 
+        if (other === -2) return [best_d, best_p]; /* No alternate side */
         const otherD = this.#bounds_distance(q, other);
         if (otherD < best_d) {
             const otherResult = this.#search(q, other);
