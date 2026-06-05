@@ -7,8 +7,7 @@ Plan:
 - Keep the array-of-indexes approach and the flatpacked storage
 - Child bounds are in parallel arrays, similarly processed to the flatpacked storage
 */
-import xxhash from "xxhash-wasm";
-const hash = xxhash();
+import initXXHash from "xxhash-wasm";
 //add a fallback hash if xxhash is unavailable
 function swap(arr, a, b) {
     const temp = arr[a];
@@ -77,12 +76,17 @@ function quickselect(set, start, end, i, axis, data, length) {
  * @returns flatpacked Float32Array[x0, y0, z0, x1, y1, z1...]
  */
 async function validate(data, length) {
-    const { h32 } = await hash;
+    const xxhash = await initXXHash();
+    const hasher = xxhash.create32();
     const map = new Map();
     const indices = [];
+    const f32 = new Float32Array(length);
+    const u8 = new Uint8Array(f32.buffer);
     for (let i = 0; i < data.length; i++) {
         const point = data[i];
-        const key = h32(point);
+        f32.set(point);
+        hasher.update(u8);
+        const key = hasher.digest();
         const bucket = map.get(key);
         if (!bucket) {
             indices.push(i);
@@ -129,7 +133,7 @@ export default class KDTree {
      * @returns Promise - await KDTree
      */
     static async initFrom(data) {
-        const kdtree = new KDTree2();
+        const kdtree = new KDTree();
         await kdtree.set(data);
         return kdtree;
     }
