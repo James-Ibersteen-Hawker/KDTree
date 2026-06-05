@@ -7,8 +7,9 @@ Plan:
 - Keep the array-of-indexes approach and the flatpacked storage
 - Child bounds are in parallel arrays, similarly processed to the flatpacked storage
 */
-import xxhash from "https://unpkg.com/xxhash-wasm/esm/xxhash-wasm.js";
+import xxhash from "xxhash-wasm";
 const hash = xxhash();
+//add a fallback hash if xxhash is unavailable
 function swap(arr, a, b) {
     const temp = arr[a];
     arr[a] = arr[b];
@@ -109,7 +110,7 @@ async function validate(data, length) {
     }
     return final;
 }
-export default class KDTree2 {
+export default class KDTree {
     #data;
     #indexes;
     #length;

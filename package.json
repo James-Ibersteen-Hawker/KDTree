@@ -1,0 +1,25 @@
+{
+  "name": "kdtree",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Takes an input array of N length of points of K dimension",
+  "main": "benchmark.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/init.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/James-Ibersteen-Hawker/KDTree.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/James-Ibersteen-Hawker/KDTree/issues"
+  },
+  "homepage": "https://github.com/James-Ibersteen-Hawker/KDTree#readme",
+  "dependencies": {
+    "xxhash-wasm": "^1.1.0"
+  }
+}

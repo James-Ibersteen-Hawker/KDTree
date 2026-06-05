@@ -1,4 +1,4 @@
-export const testSet = [
+const SmallSet = [
   [12, 45, 88],
   [85, 210, 34],
   [300, 60, 120],
@@ -61,3 +61,4 @@ export const testSet = [
   [1,1,1],
   [1,1,1]
 ];
+export default SmallSet;
