@@ -1,357 +1,331 @@
 "use strict";
 /*
-kdtree
-
-this module provides:
-- fast nearest-neighbor search
-- large dataset support
-
-this assumes:
-- integers only
-- within defined limits
-- all points are the same length K
+Plan:
+- Use Float32Arrays
+- Use contiguous storage, without a tree-based structure
+- Partition linearly instead of vertically
+- Keep the array-of-indexes approach and the flatpacked storage
+- Child bounds are in parallel arrays, similarly processed to the flatpacked storage
 */
-const max32bit = 4294967296; //maximum number of inputs on the dataset
-const overflow = [-32768, 32767]; //maximum input number in any point
-const distance = (p1, p2) => {
-    let d = 0;
-    for (let i = 0; i < p1.length; i++) d += (p1[i] - p2[i]) ** 2;
-    return d;
-}; //Euclidean distance formula, sans sqrt()
-function fold(view) {
-    let hash = 2166136261;
-    const fnv1aPrime = 16777619;
-    for (const num of view) {
-        //low byte
-        hash ^= num & 0xff;
-        hash = Math.imul(hash, fnv1aPrime);
-        //high byte
-        hash ^= (num >> 8) & 0xff;
-        hash = Math.imul(hash, fnv1aPrime);
-    }
-    return hash >>> 0;
-} //FNV-1a hashing for faster dedupe, fast and efficient enough for this need
-function dedupe(data) {
-    if (!Array.isArray(data) || data.length === 0) throw new Error("No data");
-    const map = new Map();
-    const length = data[0].length;
-    const min = overflow[0]
-    const max = overflow[1];
-    for (const pt of data) {
-        for (let n = 0; n < length; n++) {
-            const num = pt[n];
-            if (!Number.isInteger(num)) throw new Error(`${num} is not an integer`);
-            if (num < min || num > max) throw new Error(`${num} exceeds bounds of ${min}-${max}`)
+import xxhash from "https://unpkg.com/xxhash-wasm/esm/xxhash-wasm.js";
+const hash = xxhash();
+function swap(arr, a, b) {
+    const temp = arr[a];
+    arr[a] = arr[b];
+    arr[b] = temp;
+}
+function partition(set, start, end, p, data, axis, length) {
+    const pivotValue = data[set[p] * length + axis]; //p is POSITION, of INDEX, in DATA
+    swap(set, p, end);
+    let storeIndex = start;
+    for (let i = start; i < end; i++) {
+        if (data[set[i] * length + axis] < pivotValue) {
+            swap(set, storeIndex, i);
+            storeIndex++;
         }
-        const key = fold(pt); //hash the point for less deduping
+    }
+    swap(set, storeIndex, end);
+    return storeIndex;
+}
+/**
+ * Median of three pivot selection
+ * @param {Uint32Array} set index set
+ * @param {number} start start of selection
+ * @param {number} end end of selection
+ * @param {number} data list of points flatpacked
+ * @param {number} axis given axis
+ * @param {number} length length of stride
+ * @returns best index of three[start, end, mid]
+ */
+function medianOfThree(set, start, end, data, axis, length) {
+    const mid = Math.floor((start + end) / 2);
+    const a = data[set[start] * length + axis];
+    const b = data[set[mid] * length + axis];
+    const c = data[set[end] * length + axis];
+    if (a < b) {
+        if (b < c) return mid; //a < b < c
+        if (a < c) return end; //a < b <= c
+        return start;
+    } else {
+        if (a < c) return start; //b < a < c
+        if (b < c) return end; //b < a <= c
+        return mid;
+    }
+}
+/*
+Lomuto style partitioning
+Invariant: P is at given {i}
+Guarantees elements[axis] < pivot on the left and > pivot on the right
+*/
+function quickselect(set, start, end, i, axis, data, length) {
+    if (start > end) throw new RangeError("Negative region");
+    if (i < start || i > end) throw new RangeError("Out of bounds");
+    while (true) {
+        if (start === end) break;
+        const pivotIndex = medianOfThree(set, start, end, data, axis, length)
+        const newPivotIndex = partition(set, start, end, pivotIndex, data, axis, length); //determine recursion bias
+        if (i === newPivotIndex) break;
+        else if (i < newPivotIndex) end = newPivotIndex - 1;
+        else if (i > newPivotIndex) start = newPivotIndex + 1;
+    }
+}
+/**
+ * Uses xxhash to dedupe the input list
+ * @param {*} data input array for deduplicating
+ * @param {number} length length of coordinate / number of axes 
+ * @returns flatpacked Float32Array[x0, y0, z0, x1, y1, z1...]
+ */
+async function validate(data, length) {
+    const { h32 } = await hash;
+    const map = new Map();
+    const indices = [];
+    for (let i = 0; i < data.length; i++) {
+        const point = data[i];
+        const key = h32(point);
         const bucket = map.get(key);
         if (!bucket) {
-            map.set(key, [pt]);
-            continue;
-        } //collision detection and solving, with a deep comparison
-        let exists = false;
-        outer: for (const entry of bucket) {
-            for (let d = 0; d < length; d++) {
-                if (entry[d] !== pt[d]) continue outer;
+            indices.push(i);
+            map.set(key, [i])
+        } else {
+            let exists = false;
+            outer: for (let q = 0; q < bucket.length; q++) {
+                const bPoint = data[bucket[q]];
+                for (let d = 0; d < length; d++) {
+                    if (bPoint[d] !== point[d]) continue outer;
+                } //if any is different, ignore. If all are equal, break.
+                exists = true;
+                break outer;
             }
-            exists = true;
-            break;
+            if (!exists) {
+                indices.push(i)
+                bucket.push(i);
+            }
         }
-        if (!exists) bucket.push(pt);
     }
-    if (map.size === 0) throw new Error(`Error in dedupe, map = ${map}`)
-    let uniqueLength = 0;
-    let offset = 0;
-    const buckets = Array.from(map.values())
-    for (const bucket of buckets) uniqueLength += bucket.length;
-    const output = new INT16(uniqueLength * length, length);
-    for (const bucket of buckets) {
-        for (const pt of bucket) for (let d = 0; d < length; d++) output[offset++] = pt[d];
+    const final = new Float32Array(indices.length * length)
+    for (let i = 0; i < indices.length; i++) {
+        const point = data[indices[i]];
+        for (let d = 0; d < length; d++) final[i * length + d] = point[d];
     }
-    return output;
-} //map-based deduplication, uses FNV-1a hash to dedupe datasets
-const swap = (arr, a, b) => [arr[a], arr[b]] = [arr[b], arr[a]];
-function partition(indices, start, end, pivotIndex, axis, data) {
-    const pivotValue = data.index(indices[pivotIndex], axis);
-    swap(indices, pivotIndex, end - 1);
-    let store = start;
-    for (let i = start; i < end - 1; i++) {
-        if (data.index(indices[i], axis) < pivotValue) swap(indices, store++, i);
-    }
-    swap(indices, store, end - 1);
-    return store;
+    return final;
 }
-function quickselect(indices, start, end, k, axis, data) {
-    while (true) {
-        if (end - start <= 1) return;
-        let pivotIndex = start + ((end - start) >> 1);
-        pivotIndex = partition(indices, start, end, pivotIndex, axis, data);
-        if (k === pivotIndex) return;
-        else if (k < pivotIndex) end = pivotIndex;
-        else if (k > pivotIndex) start = pivotIndex + 1;
-    }
-} //the function that partitions the dataset about the pivot
-class Branch {
-    constructor(pvt, axis, setL, setR, length, mins, maxes) {
-        this.pivot = pvt;
-        this.axis = axis;
-        this.setL = setL;
-        this.setR = setR;
-        this.mins = mins;
-        this.maxes = maxes;
-    }
-    static get [Symbol.species]() {
-        return Branch;
-    }
-}
-/*
-INT16
-
-It is an extension of the native Int16Array
-- It has the property of unit length
-- It is a flattened packed version of the input vectors
-- It offers a way to extract whole points and partial scalar point components
-- Length is overidden to give it "array-like" logical length as per contents
-
-It only supports the initial Int16Array parameter, not the others
-
-Otherwise it works like an enhanced Int16Array
-*/
-class INT16 extends Int16Array {
-    #UL;
-    static get [Symbol.species]() {
-        return Int16Array;
-    }
-    constructor(data, unitLength) {
-        super(data);
-        this.#UL = unitLength;
-    }
-    index(i, axis) {
-        return this[i * this.#UL + axis];
-    } //scalar point access
-    point(i, copy = false) {
-        const start = i * this.#UL;
-        const end = start + this.#UL;
-        const view = this.subarray(start, end);
-        return copy ? Array.from(view) : view;
-    } // vector point reference vs copy access
-    get length() {
-        return super.length / this.#UL;
-    } //"logical" length vs true length
-}
-/*
-A custom wrapper for the leaves to preserve Uint32 but with extra properties
-*/
-class UINT32 extends Uint32Array {
-    constructor(...params) {
-        super(...params);
-        this.maxes = null;
-        this.mins = null;
-    }
-    minsmaxes() {
-        // const maxes = Array.from(this.#data.point(0));
-        // const mins = Array.from(this.#data.point(0));
-        // for (const index of this.#indexes) {
-        //     for (let i = 0; i < this.#length; i++) {
-        //         const axis = this.#data.index(index, i);
-        //         const max = maxes[i];
-        //         const min = mins[i];
-        //         if (axis > max) maxes[i] = axis;
-        //         else if (axis < min) mins[i] = axis;
-        //     }
-        // }
-    }
-    static get [Symbol.species]() {
-        return Uint32Array;
-    }
-}
-/*
-custom low-level KD-tree with as much emphasis on efficiency as possible
-Note the usage of almost exclusively typed arrays, and the quicksort
-The aim is to be as memory-compact as possible for storage and usage purposes
-*/
-export class KDTree {
+export default class KDTree2 {
     #data;
-    #length;
-    #tree;
     #indexes;
-    static #TYPE_LEAF = 0;
-    static #TYPE_BRANCH = 1;
-    initFrom(serialTree) {
-        const sorted = serialTree.slice().sort((a, b) => a[0] - b[0]);
-        const data = sorted[0];
-        if (!data || data.length === 0) throw new Error("Invalid data");
-        const length = data[1];
-        this.#data = new INT16(data.slice(2), length); //step 1, I have reconstructed the dataset
-        sorted.shift()
-        const newTree = KDTree.#assembleTree(sorted, 0, length);
-        this.#tree = newTree;
-        this.#length = length;
-        this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
-        return newTree;
+    #length;
+    #leafsize;
+    #nodeCount;
+    #pivots;
+    #maxes;
+    #mins;
+    #left;
+    #right;
+    #axis;
+    #node_start;
+    #node_end;
+    /**
+     * @param {Array} data Array input of equal lengths
+     * @returns Promise - await KDTree
+     */
+    static async initFrom(data) {
+        const kdtree = new KDTree2();
+        await kdtree.set(data);
+        return kdtree;
     }
-    static #assembleTree(set, index, length) {
-        if (!set[index]) throw new Error("No item");
-        if (set[index][1] === KDTree.#TYPE_LEAF) {
-            const maxes = set[index].subarray(-length);
-            const mins = set[index].subarray(-length * 2, -length);
-            const points = set[index].subarray(2, -length * 2);
-            const node = new UINT32(points);
-            node.maxes = maxes;
-            node.mins = mins;
-            return node;
-        }
-        else if (set[index][1] !== KDTree.#TYPE_BRANCH) throw new Error("Not a branch or leaf");
-        const pivot = set[index][2];
-        const axis = set[index][3];
-        const mins = set[index].subarray(4, 4 + length);
-        const maxes = set[index].subarray(4 + length, 4 + length * 2);
-        const leftID = set[index][set[index].length - 2];
-        const rightID = set[index][set[index].length - 1];
-        const node = new Branch(pivot, axis, null, null, length, mins, maxes);
-        node.setL = KDTree.#assembleTree(set, leftID, length);
-        node.setR = KDTree.#assembleTree(set, rightID, length);
-        return node;
-    }
-    serialize() {
-        const flatTree = [];
-        flatTree.push(new Float64Array([-1, this.#length, ...this.#data]))
-        KDTree.#flatten(this.#tree, 0, flatTree)
-        return flatTree;
-    }
-    static #flatten(branch, index, accumulator) { //index is the node ID
-        if (branch instanceof UINT32) {
-            const { mins, maxes } = branch;
-            accumulator.push(Float64Array.from([index, KDTree.#TYPE_LEAF, ...branch, ...mins, ...maxes]))
-            return index;
-        } //if leaf, simply return the index it is at
-        if (!(branch instanceof Branch)) throw new Error("Branch is invalid");
-        //if it is a branch
-        const { pivot, axis, mins, maxes, setL, setR } = branch;
-        const leftStart = index + 1;
-        const leftEnd = KDTree.#flatten(setL, leftStart, accumulator);
-        const rightStart = leftEnd + 1;
-        const rightLast = KDTree.#flatten(setR, rightStart, accumulator);
-        accumulator.push(Float64Array.from([
-            index, KDTree.#TYPE_BRANCH, pivot, axis, ...mins, ...maxes, leftStart, rightStart
-        ]))
-        return rightLast;
-    }
-    constructor(data) {
-        if (data) this.#init(data);
-    };
-    get data() {
-        try { return Array.from(this.#indexes).map(i => this.#data.point(i, true)) }
-        catch { throw new Error("No data") }
-    }
-    #init(data) {
-        if (data.length > max32bit) throw new Error("Too much data!");
-        if (!data || !Array.isArray(data) || data.length === 0) throw new Error("Invalid Input")
+    constructor() { /* intentionally blank, to force users to use static initFrom() */ }
+    async #init(data) {
+        if (!data[0]) throw new Error("First element doesn't exist");
         this.#length = data[0]?.length;
-        if (!this.#length) throw new Error("Invalid length");
-        if (!data.every(e => Array.isArray(e) && e.length === this.#length)) throw new Error("Inconsistent lengths");
-        this.#data = dedupe(data);
-        this.#indexes = Uint32Array.from(Array.from({ length: this.#data.length }, (_, i) => i));
-        const maxes = Array.from(this.#data.point(0));
-        const mins = Array.from(this.#data.point(0));
-        for (const index of this.#indexes) {
-            for (let i = 0; i < this.#length; i++) {
-                const axis = this.#data.index(index, i);
-                const max = maxes[i];
-                const min = mins[i];
-                if (axis > max) maxes[i] = axis;
-                else if (axis < min) mins[i] = axis;
+        if (this.#length == null) throw new Error("Invalid starting length");
+        this.#data = await validate(data, this.#length);
+        this.#indexes = Uint32Array.from({ length: this.#data.length / this.#length }, (_, i) => i);
+        this.#leafsize = 10;
+        const pointCount = this.#data.length / this.#length;
+        const maxnodecount = 2 * pointCount - 1;
+        //SoA structure - Parallel Arrays
+        //pivot and axis - general data
+        this.#pivots = new Uint32Array(maxnodecount);
+        this.#axis = new Uint8Array(maxnodecount);
+        //maxes and mins, flatpacked
+        this.#maxes = new Float32Array(maxnodecount * this.#length);
+        this.#mins = new Float32Array(maxnodecount * this.#length);
+        //left and right index pointers
+        this.#left = new Int32Array(maxnodecount).fill(-2);
+        this.#right = new Int32Array(maxnodecount).fill(-2);
+        //node starts and ends
+        this.#node_start = new Uint32Array(maxnodecount);
+        this.#node_end = new Uint32Array(maxnodecount);
+        //counters
+        this.#nodeCount = 0;
+        const maxes = this.#data.slice(0, this.#length);
+        const mins = this.#data.slice(0, this.#length);
+        for (let i = 1; i < this.#indexes.length; i++) {
+            const start = i * this.#length;
+            for (let d = 0; d < this.#length; d++) {
+                const val = this.#data[start + d];
+                if (val > maxes[d]) maxes[d] = val;
+                else if (val < mins[d]) mins[d] = val;
+            } //index is the point, then length is the stride, and axis is the value
+        }
+        this.#assemble(this.#indexes, mins, maxes, 0, this.#indexes.length - 1, 0);
+    }
+    /**
+     * @param {Array} data replace the old set
+     */
+    async set(data) {
+        if (!data[0] || data.length <= 1) throw new Error("Invalid Data");
+        await this.#init(data);
+    }
+    search(q /* add axis as a parameter*/) { //add single-axis search afterwards
+        if (!Array.isArray(q)) throw new Error("Query is not correct type")
+        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
+        if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
+        const result = this.#search(q);
+        const final_d = result[0];
+        const final_p = result[1] * this.#length; //for now, incorporating the stride
+        return Array.from(this.#data.slice(final_p, final_p + this.#length));
+    }
+    /**
+     * Assembles an implicit KDTree
+     * 
+     * Mutates indexes[] in place, returns #node for counting
+     * 
+     * Creates the SoA for each node, with inherited bounds
+     * @param {Uint32Array} set the array of indexes to data[]
+     * @param {Float32Array} mins the local maximum
+     * @param {Float32Array} maxes the local minimum
+     * @param {number} start the start of partitioning segment
+     * @param {number} end the end of partitioning segment
+     * @param {number} axis current axis
+     */
+    #assemble(set, mins, maxes, start, end, axis) {
+        if (end < start) return -2; //initial defence
+
+        const length = this.#length;
+        const node = this.#nodeCount++;
+
+        //define node bounds
+        this.#node_start[node] = start;
+        this.#node_end[node] = end;
+
+        const offset = node * length;
+        for (let d = 0; d < length; d++) {
+            const pos = offset + d;
+            this.#maxes[pos] = maxes[d];
+            this.#mins[pos] = mins[d];
+        }
+
+        if (end - start < this.#leafsize) return node; //if leaf
+
+        const data = this.#data;
+        const center = Math.floor((start + end) / 2);
+        const newAxis = (axis + 1) % length;
+
+        //rearranges [start - end] of the list
+        quickselect(set, start, end, center, axis, data, length);
+
+        const pivot = set[center];
+        this.#pivots[node] = pivot; //index of pivot in this.#data
+        this.#axis[node] = axis;
+        
+        //[rMins, P) - P - [P, lMaxes)
+        const left_maxes = maxes.slice();
+        const right_mins = mins.slice();
+
+        //change bounds to fit the pivot value
+        const pivotValue = data[pivot * length + axis]
+        left_maxes[axis] = pivotValue;
+        right_mins[axis] = pivotValue;
+
+        //recursive assembly
+        this.#left[node] = this.#assemble(set, mins, left_maxes, start, center - 1, newAxis);
+        this.#right[node] = this.#assemble(set, right_mins, maxes, center + 1, end, newAxis);
+
+        return node; //return node id for the proper offset
+    }
+    #search(q, nodeID = 0) {
+        const length = this.#length; //for brevity and ease of reading
+        const start = this.#node_start[nodeID];
+        const end = this.#node_end[nodeID];
+        if (end - start < this.#leafsize) return this.#closest(q, start, end);
+        const pivot = this.#pivots[nodeID];
+        const axis = this.#axis[nodeID];
+        const left = this.#left[nodeID];
+        const right = this.#right[nodeID];
+        const pivot_pos = pivot * length
+        const pvt_val = this.#data[pivot_pos + axis];
+        const go_left = q[axis] < pvt_val;
+        const side = go_left ? left : right;
+        const other = go_left ? right : left;
+        const result = this.#search(q, side);
+        let best_d = result[0];
+        let best_p = result[1];
+        const pivot_d = this.#pivotDistance(q, pivot_pos)
+        if (pivot_d < best_d) {
+            best_d = pivot_d;
+            best_p = pivot;
+        }
+        if (other === -2) return [best_d, best_p]; /* No alternate side */
+        const otherD = this.#bounds_distance(q, other);
+        if (otherD < best_d) {
+            const otherResult = this.#search(q, other);
+            const other_d = otherResult[0];
+            const other_p = otherResult[1];
+            if (other_d < best_d) {
+                best_d = other_d;
+                best_p = other_p;
             }
         }
-        this.#tree = this.#assemble(this.#indexes.slice(), 0, this.#indexes.length, 0, mins, maxes); //future max min
+        return [best_d, best_p];
     }
-    #assemble(set, start, end, axis, mins, maxes) {
-        if (set instanceof Uint32Array && (end - start) < 8) {
-            const data = new UINT32(set.slice(start, end));
-            data.maxes = maxes;
-            data.mins = mins;
-            return data;
-        }
-        const NAxis = (axis + 1) % this.#length;
-        const mid = ((end - start) >> 1) + start;
-        quickselect(set, start, end, mid, axis, this.#data);
-        const PIDX = set[mid];
-        const lMaxes = maxes.slice();
-        const rMins = mins.slice();
-        rMins[axis] = this.#data.index(PIDX, axis);
-        lMaxes[axis] = this.#data.index(PIDX, axis);
-        const setL = this.#assemble(set, start, mid, NAxis, mins, lMaxes);
-        const setR = this.#assemble(set, mid + 1, end, NAxis, rMins, maxes);
-        return new Branch(PIDX, axis, setL, setR, this.#length, mins, maxes)
-    } //uses quickselect to not duplicate the original array, and the Leaves are Uint32Arrays, not Branches
-    clear() {
-        this.#data = null;
-        this.#tree = null;
-        this.#length = null;
-        this.#indexes = null;
-        return this;
-    } //empty the dataset
-    newSet(data) {
-        this.clear().#init(data);
-        return this;
-    } //clear, and then initialize with another dataset
-    search(q, includeDist = false, branch = this.#tree) {
-        if (!Array.isArray(q) || q.length !== this.#length) throw new Error(`Query ${q} is invalid`);
-        if (!this.#tree) throw new Error("No tree");
-        const result = this.#search(q, branch);
-        if (includeDist) return [result[0], Array.from(result[1])];
-        return Array.from(result[1]);
-    }
-    #search(q, branch) {
-        if (branch instanceof UINT32) {
-            const closest = this.#closest(branch, q);
-            return closest;
-        } //the leaf nodes are Uint32Arrays, not Branch{}
-        const pivot = this.#data.point(branch.pivot);
-        const axis = branch.axis;
-        const goLeft = q[axis] < pivot[axis]
-        const side = goLeft ? branch.setL : branch.setR;
-        const other = goLeft ? branch.setR : branch.setL; //corresponding other dataset
-        let [bD, bP] = this.#search(q, side);
-        const pD = distance(q, pivot);
-        if (pD < bD) [bD, bP] = [pD, pivot];
-        if (!other) return [bD, bP]
-        const otherD = this.#boundDistance(q, other.mins, other.maxes);
-        if (otherD < bD) {
-            const [oD, oP] = this.#search(q, other);
-            if (oD < bD) [bD, bP] = [oD, oP];
-        }
-        return [bD, bP]
-    }
-    #boundDistance(q, mins, maxes) {
+    #bounds_distance(q, nodeID) { //distance to max / min (whichever is appropriate)
         let dist = 0;
+        const node_offset = nodeID * this.#length;
         for (let i = 0; i < this.#length; i++) {
             let d = 0;
-            if (q[i] < mins[i]) d = mins[i] - q[i];
-            else if (q[i] > maxes[i]) d = q[i] - maxes[i];
+            const min = this.#mins[node_offset + i]; //predefine to reduce lookups
+            const max = this.#maxes[node_offset + i];
+            const qi = q[i]
+            if (qi < min) d = min - qi;
+            else if (qi > max) d = qi - max;
             dist += d * d;
         }
         return dist;
     }
-    #closest(list, q) {
-        let [bD, bP] = [Infinity, null];
-        for (let i = 0; i < list.length; i++) {
-            const point = this.#data.point(list[i]);
-            const D = distance(point, q);
-            if (D < bD) [bD, bP] = [D, point];
+    /**
+     * Finds the closest point based off of a list and query (brute force method)
+     * @param {*} q 
+     * @param {*} set 
+     */
+    #closest(q, start, end) {
+        //brute force
+        const length = this.#length;
+        const indexes = this.#indexes;
+        const data = this.#data;
+        let best_d = Infinity;
+        let best_p = null;
+        for (let i = start; i <= end; i++) {
+            const index = indexes[i];
+            const offset = index * length;
+            let dist = 0;
+            for (let d = 0; d < length; d++) { //zero-allocation viewing
+                const delta = q[d] - data[offset + d];
+                dist += delta * delta;
+                if (dist >= best_d) break;
+            }
+            if (dist < best_d) {
+                best_p = index;
+                best_d = dist;
+            } //returning index, final point is computed last
         }
-        return [bD, bP];
-    } //finally brute force the remaining point cloud
+        return [best_d, best_p];
+    }
+    #pivotDistance(q, p) {
+        let dist = 0;
+        for (let i = 0; i < this.#length; i++) {
+            const scalar = this.#data[p + i];
+            dist += (q[i] - scalar) * (q[i] - scalar);
+        }
+        return dist;
+    }
 }
-
-/*
-1.1 adds a serializer and 1.2 adds a parser, to become 1.3.
-Usage: var tree = new KDTree(), tree.initFrom(input)
-*/
-
-/*
-next steps:
-- leaf geometric nodes, not numerical
-- optimise closest()
-
-*/
