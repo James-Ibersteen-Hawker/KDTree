@@ -12,7 +12,7 @@ console.log(start, end)
 
 const q = [0,0, 0, 0]; //query
 
-for (let i = 0; i < 100000; i++) newTree.search(q);
+// for (let i = 0; i < 100000; i++) newTree.search(q);
 start = performance.now();
 const result = newTree.search(q)
 end = performance.now();

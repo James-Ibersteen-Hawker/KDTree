@@ -8,6 +8,11 @@ Plan:
 - Child bounds are in parallel arrays, similarly processed to the flatpacked storage
 */
 import initXXHash from "xxhash-wasm";
+let xxhash = null
+async function getHash() {
+    if (!xxhash) xxhash = await initXXHash();
+    return xxhash;
+}
 //add a fallback hash if xxhash is unavailable
 function swap(arr, a, b) {
     const temp = arr[a];
@@ -76,8 +81,7 @@ function quickselect(set, start, end, i, axis, data, length) {
  * @returns flatpacked Float32Array[x0, y0, z0, x1, y1, z1...]
  */
 async function validate(data, length) {
-    const xxhash = await initXXHash();
-    const hasher = xxhash.create32();
+    const hash = await getHash();
     const map = new Map();
     const indices = [];
     const f32 = new Float32Array(length);
@@ -87,8 +91,7 @@ async function validate(data, length) {
         for (let d = 0; d < length; d++) {
             f32[d] = point[d];
         }
-        hasher.update(u8);
-        const key = hasher.digest();
+        const key = hash.h32Raw(u8);
         const bucket = map.get(key);
         if (!bucket) {
             indices.push(i);
