@@ -92,11 +92,15 @@ async function validate(data, length) {
             f32[d] = point[d];
         }
         const key = hash.h32Raw(u8);
-        const bucket = map.get(key);
+        let bucket = map.get(key);
         if (!bucket) {
             indices.push(i);
-            map.set(key, [i])
+            map.set(key, i)
         } else {
+            if (typeof bucket === "number") {
+                map.set(key, [bucket]);
+                bucket = map.get(key);
+            }
             let exists = false;
             outer: for (let q = 0; q < bucket.length; q++) {
                 const bPoint = data[bucket[q]];
