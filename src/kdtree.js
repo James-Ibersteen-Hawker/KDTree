@@ -238,10 +238,8 @@ export default class KDTree {
         
         //[rMins, P) - P - [P, lMaxes)
         //keep the altered positions for non-slicing
-        const left_dry = maxes[axis];
-        const right_dry = mins[axis];
-        const left_maxes = maxes;
-        const right_mins = mins;
+        const left_maxes = maxes.slice();
+        const right_mins = mins.slice();
 
         //change bounds to fit the pivot value
         const pivotValue = data[pivot * length + axis]
@@ -250,9 +248,7 @@ export default class KDTree {
 
         //recursive assembly
         this.#left[node] = this.#assemble(set, mins, left_maxes, start, center - 1, newAxis);
-        left_maxes[axis] = left_dry;
         this.#right[node] = this.#assemble(set, right_mins, maxes, center + 1, end, newAxis);
-        right_mins[axis] = right_dry;
         return node; //return node id for the proper offset
     }
     #search(q, nodeID = 0) {
