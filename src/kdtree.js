@@ -145,25 +145,24 @@ export default class KDTree {
         await kdtree.set(data);
         return kdtree;
     }
-    constructor() { /* intentionally blank, to force users to use static initFrom() */ }
+    constructor() {} /* intentionally blank, to force users to use static initFrom() */ 
     async #init(data) {
         if (!data[0]) throw new Error("First element doesn't exist");
         this.#length = data[0]?.length;
-        if (this.#length == null) throw new Error("Invalid starting length");
-        const start = performance.now();
-        this.#data = await validate(data, this.#length);
-        const end = performance.now();
-        console.log("Validation: ", end - start);
-        this.#indexes = Uint32Array.from({ length: this.#data.length / this.#length }, (_, i) => i);
-        this.#leafsize = 10;
-        const pointCount = this.#data.length / this.#length;
+        const length = this.#length;
+        if (length == null) throw new Error("Invalid starting length");
+        this.#data = await validate(data, length);
+        const _data = this.#data;
+        const pointCount = _data.length / length;
+        this.#indexes = new Uint32Array(pointCount);
+        for (let i = 0; i < pointCount; i++) this.#indexes[i] = i;
         const maxnodecount = 2 * pointCount - 1;
         //SoA structure - Parallel Arrays
         //pivot and axis - general data
         this.#pivots = new Uint32Array(maxnodecount);
         //maxes and mins, flatpacked
-        this.#maxes = new Float32Array(maxnodecount * this.#length);
-        this.#mins = new Float32Array(maxnodecount * this.#length);
+        this.#maxes = new Float32Array(maxnodecount * length);
+        this.#mins = new Float32Array(maxnodecount * length);
         //left and right index pointers
         this.#left = new Int32Array(maxnodecount).fill(-2);
         this.#right = new Int32Array(maxnodecount).fill(-2);
@@ -172,24 +171,19 @@ export default class KDTree {
         this.#node_end = new Uint32Array(maxnodecount);
         //counters
         this.#nodeCount = 0;
+        this.#leafsize = 10;
         //must be a slice to detach from processing
-        const maxes = this.#data.slice(0, this.#length);
-        const mins = this.#data.slice(0, this.#length);
-        const start3 = performance.now()
+        const maxes = _data.slice(0, length);
+        const mins = _data.slice(0, length);
         for (let i = 1; i < this.#indexes.length; i++) {
-            const start = i * this.#length;
-            for (let d = 0; d < this.#length; d++) {
-                const val = this.#data[start + d];
+            const start = i * length;
+            for (let d = 0; d < length; d++) {
+                const val = _data[start + d];
                 if (val > maxes[d]) maxes[d] = val;
                 else if (val < mins[d]) mins[d] = val;
             } //index is the point, then length is the stride, and axis is the value
         }
-        const end3 = performance.now();
-        console.log("Maxmins: ", end3 - start3)
-        const start2 = performance.now();
         this.#assemble(this.#indexes, mins, maxes, 0, this.#indexes.length - 1, 0);
-        const end2 = performance.now();
-        console.log("Assembly: ", end2 - start2);
     }
     /**
      * @param {Array} data replace the old set
