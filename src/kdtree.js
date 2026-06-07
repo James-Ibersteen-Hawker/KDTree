@@ -8,7 +8,7 @@ Plan:
 - Child bounds are in parallel arrays, similarly processed to the flatpacked storage
 */
 import initXXHash from "xxhash-wasm";
-let xxhash = null
+let xxhash = null;
 async function getHash() {
     if (!xxhash) xxhash = await initXXHash();
     return xxhash;
@@ -24,10 +24,7 @@ function partition(set, start, end, p, data, axis, length) {
     swap(set, p, end);
     let storeIndex = start;
     for (let i = start; i < end; i++) {
-        if (data[set[i] * length + axis] < pivotValue) {
-            swap(set, storeIndex, i);
-            storeIndex++;
-        }
+        if (data[set[i] * length + axis] < pivotValue) swap(set, storeIndex++, i);
     }
     swap(set, storeIndex, end);
     return storeIndex;
@@ -141,22 +138,25 @@ export default class KDTree {
      * @returns Promise - await KDTree
      */
     static async initFrom(data) {
+        if (data.length <= 1) throw new Error("Not enough data");
         const kdtree = new KDTree();
         await kdtree.set(data);
         return kdtree;
     }
-    constructor() {} /* intentionally blank, to force users to use static initFrom() */ 
+    constructor() { } /* intentionally blank, to force users to use static initFrom() */
     async #init(data) {
         if (!data[0]) throw new Error("First element doesn't exist");
         this.#length = data[0]?.length;
         const length = this.#length;
         if (length == null) throw new Error("Invalid starting length");
         this.#data = await validate(data, length);
+        if (this.#data.length <= 1) throw new Error("Not enough data");
         const _data = this.#data;
         const pointCount = _data.length / length;
+        this.#leafsize = 10;
         this.#indexes = new Uint32Array(pointCount);
         for (let i = 0; i < pointCount; i++) this.#indexes[i] = i;
-        const maxnodecount = 2 * pointCount - 1;
+        const maxnodecount = pointCount - (this.#leafsize - 1);
         //SoA structure - Parallel Arrays
         //pivot and axis - general data
         this.#pivots = new Uint32Array(maxnodecount);
@@ -171,7 +171,6 @@ export default class KDTree {
         this.#node_end = new Uint32Array(maxnodecount);
         //counters
         this.#nodeCount = 0;
-        this.#leafsize = 10;
         //must be a slice to detach from processing
         const maxes = _data.slice(0, length);
         const mins = _data.slice(0, length);
@@ -183,6 +182,7 @@ export default class KDTree {
                 else if (val < mins[d]) mins[d] = val;
             } //index is the point, then length is the stride, and axis is the value
         }
+        if (this.#data.length <= this.#leafsize) return; //not enough points to make a tree
         this.#assemble(this.#indexes, mins, maxes, 0, this.#indexes.length - 1, 0);
     }
     /**
@@ -192,14 +192,38 @@ export default class KDTree {
         if (!data[0] || data.length <= 1) throw new Error("Invalid Data");
         await this.#init(data);
     }
-    search(q /* add axis as a parameter*/) { //add single-axis search afterwards
+    /**
+     * This is the KDtree search function. If axis is specified, it will search solely on that axis
+     * @param {Array} q Input
+     * @param {number} [axis=null] Specifies if the function should only search a specific axis
+     * @param {boolean} [includeDistance=false] Specifies if the function should include the distance
+     * @returns either Point[] or (Distance, Point[])
+     */
+    search(q, axis = null, includeDistance = false) {
+        if (axis && typeof axis === "number") { //if axis is a Boolean, therefore Axis was omitted
+            // do sinle axis jobs
+        } else if (!axis || typeof axis === "boolean") { //full search, with handling of includeDistance
+            let yesdistance; //check if Axis is taken by includeDistance
+            if (typeof axis === "boolean") yesdistance = axis;
+            else yesdistance = includeDistance;
+            return this.#generalSearch(q, yesdistance)
+        }
+    }
+    #generalSearch(q, includeDistance) { //non-axis search, uses the full tree
         if (!Array.isArray(q)) throw new Error("Query is not correct type")
         if (q.length !== this.#length) throw new Error("Query is of incorrect length");
         if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
+        if (this.#data.length <= this.#leafsize) {
+            console.log("too small");
+            const smallresult = this.#closest(q, 0, this.#indexes.length - 1);
+            return smallresult[1];
+        }
         const result = this.#search(q, 0, 0);
-        // const final_d = result[0];
+        const final_d = result[0];
         const final_p = result[1] * this.#length; //for now, incorporating the stride
-        return Array.from(this.#data.slice(final_p, final_p + this.#length));
+        const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
+        if (includeDistance === true) return [Math.sqrt(final_d), point];
+        return point;
     }
     /**
      * Assembles an implicit KDTree
@@ -235,27 +259,27 @@ export default class KDTree {
 
         const data = this.#data;
         const center = Math.floor((start + end) / 2);
-        const newAxis = (axis + 1) % length;
+        const newAxis = axis + 1 === this.#length ? 0 : axis + 1;
 
         //rearranges [start - end] of the list
         quickselect(set, start, end, center, axis, data, length);
 
         const pivot = set[center];
         this.#pivots[node] = pivot; //index of pivot in this.#data
-        
+
         //[rMins, P) - P - [P, lMaxes)
         //keep the altered positions for non-slicing
-        const left_maxes = maxes.slice();
-        const right_mins = mins.slice();
-
+        const left_dry = maxes[axis];
+        const right_dry = mins[axis];
         //change bounds to fit the pivot value
         const pivotValue = data[pivot * length + axis]
-        left_maxes[axis] = pivotValue;
-        right_mins[axis] = pivotValue;
-
+        maxes[axis] = pivotValue;
         //recursive assembly
-        this.#left[node] = this.#assemble(set, mins, left_maxes, start, center - 1, newAxis);
-        this.#right[node] = this.#assemble(set, right_mins, maxes, center + 1, end, newAxis);
+        this.#left[node] = this.#assemble(set, mins, maxes, start, center - 1, newAxis);
+        maxes[axis] = left_dry;
+        mins[axis] = pivotValue;
+        this.#right[node] = this.#assemble(set, mins, maxes, center + 1, end, newAxis);
+        mins[axis] = right_dry;
         return node; //return node id for the proper offset
     }
     #search(q, nodeID = 0, axis) {
@@ -309,8 +333,9 @@ export default class KDTree {
     }
     /**
      * Finds the closest point based off of a list and query (brute force method)
-     * @param {*} q 
-     * @param {*} set 
+     * @param {Array} q 
+     * @param {number} start
+     * @param {number} end
      */
     #closest(q, start, end) {
         //brute force
