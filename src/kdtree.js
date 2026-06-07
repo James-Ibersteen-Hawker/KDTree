@@ -203,7 +203,7 @@ export default class KDTree {
         if (q.length !== this.#length) throw new Error("Query is of incorrect length");
         if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
         const result = this.#search(q, 0, 0);
-        const final_d = result[0];
+        // const final_d = result[0];
         const final_p = result[1] * this.#length; //for now, incorporating the stride
         return Array.from(this.#data.slice(final_p, final_p + this.#length));
     }
