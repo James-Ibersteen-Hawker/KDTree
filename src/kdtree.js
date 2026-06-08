@@ -122,18 +122,18 @@ async function validate(data, length) {
     return final;
 }
 export default class KDTree {
-    #data;
-    #indexes;
+    #data; //float32
+    #indexes; //uint32
     #length;
     #leafsize;
     #nodeCount;
-    #pivots;
-    #maxes;
-    #mins;
-    #left;
-    #right;
-    #node_start;
-    #node_end;
+    #pivots; //uint32
+    #maxes; //float32
+    #mins; //float32
+    #left; //int32
+    #right; //int32
+    #node_start; //uint32
+    #node_end; //uint32
     /**
      * @param {Array} data Array input of equal lengths
      * @returns Promise - await KDTree
@@ -160,7 +160,6 @@ export default class KDTree {
         this.#leafsize = 10;
         this.#indexes = new Uint32Array(pointCount);
         for (let i = 0; i < pointCount; i++) this.#indexes[i] = i;
-
         const maxnodecount = pointCount - (this.#leafsize - 1);
         //SoA structure - Parallel Arrays
         //pivot and axis - general data
@@ -395,7 +394,61 @@ export default class KDTree {
         }
     }
     #compressTreeTyped() {
-
+        const length = this.#length;
+        const data = this.#data;
+        const indexes = this.#indexes;
+        const pivots = this.#pivots;
+        const mins = this.#mins;
+        const maxes = this.#maxes;
+        const lefts = this.#left;
+        const rights = this.#right;
+        const starts = this.#node_start;
+        const ends = this.#node_end;
+        const header = new Uint32Array([
+            length,
+            this.#leafsize,
+            data.length,
+            pivots.length,
+            indexes.length,
+            mins.length,
+            maxes.length,
+            lefts.length,
+            rights.length,
+            starts.length,
+            ends.length
+        ]);
+        const totalByteSize =
+            header.byteLength +
+            data.byteLength +
+            pivots.byteLength +
+            indexes.byteLength +
+            mins.byteLength +
+            maxes.byteLength +
+            lefts.byteLength +
+            rights.byteLength +
+            starts.byteLength +
+            ends.byteLength
+        
+        const buffer = new ArrayBuffer(totalByteSize)
+        let offset = 0;
+        const sections = [
+            [Uint32Array, header],
+            [Float32Array, data],
+            [Uint32Array, pivots],
+            [Uint32Array, indexes],
+            [Float32Array, mins],
+            [Float32Array, maxes],
+            [Int32Array, lefts],
+            [Int32Array, rights],
+            [Uint32Array, starts],
+            [Uint32Array, ends],
+        ];
+        for (let i = 0; i < sections.length; i++) {
+            const [type, value] = sections[i];
+            new type(buffer, offset, value.length).set(value);
+            offset += value.byteLength;
+        }
+        return buffer;
     }
     #compressTreeNontyped() {
 
