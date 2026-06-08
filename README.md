@@ -91,3 +91,5 @@ Values:  `"json", "blob", "es6-standard", "es6-typed"`
 const deSerializedTree = KDTree.initFromSerial(serial, format)
 ```
 `format` must match the serialized format to decode properly.
+***
+MIT License - 2026

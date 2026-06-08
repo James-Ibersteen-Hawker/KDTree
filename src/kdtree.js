@@ -378,20 +378,15 @@ export default class KDTree {
      * @returns JSON-string, Blob{}, Array[], or Float32Array[]
      */
     serialize(format = "json") {
-        if (format === "es6-standard") return this.#compressTreeNontyped();
-        const serial = this.#compressTreeTyped();
-        switch (format) {
-            case "json":
-                return JSON.stringify(serial);
-            case "blob":
-                return new Blob([serial], {
-                    type: "application/octet-stream"
-                });
-            case "es6-typed":
-                return serial;
-            default:
-                throw new Error(`Unsupported type ${format}`);
-        }
+        if (["json", "es6-standard"].includes(format)) {
+            const serial = this.#compressTreeNontyped();
+            if (format === "json") return JSON.stringify(serial);
+            else return serial;
+        } else if (["blob", "es6-typed"].includes(format)) {
+            const serial = this.#compressTreeTyped();
+            if (format === "es6-typed") return serial;
+            else return new Blob([serial], { type: "application/octet-stream"});
+        } else throw new Error(`Unsupported type ${format}`);
     }
     #compressTreeTyped() {
         const length = this.#length;
@@ -428,7 +423,7 @@ export default class KDTree {
             rights.byteLength +
             starts.byteLength +
             ends.byteLength
-        
+
         const buffer = new ArrayBuffer(totalByteSize)
         let offset = 0;
         const sections = [
@@ -451,6 +446,6 @@ export default class KDTree {
         return buffer;
     }
     #compressTreeNontyped() {
-
+        
     }
 }
