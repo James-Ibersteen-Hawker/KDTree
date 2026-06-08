@@ -13,6 +13,7 @@ async function getHash() {
     if (!xxhash) xxhash = await initXXHash();
     return xxhash;
 }
+const bounds = [-340282346638528859811704183484516925440, 340282346638528859811704183484516925440]
 //add a fallback hash if xxhash is unavailable
 function swap(arr, a, b) {
     const temp = arr[a];
@@ -143,6 +144,9 @@ export default class KDTree {
         await kdtree.set(data);
         return kdtree;
     }
+    // static async initFromSerial(serial, format) {
+
+    // }
     constructor() { } /* intentionally blank, to force users to use static initFrom() */
     async #init(data) {
         if (!data[0]) throw new Error("First element doesn't exist");
@@ -150,12 +154,13 @@ export default class KDTree {
         const length = this.#length;
         if (length == null) throw new Error("Invalid starting length");
         this.#data = await validate(data, length);
-        if (this.#data.length <= 1) throw new Error("Not enough data");
         const _data = this.#data;
         const pointCount = _data.length / length;
+        if (pointCount <= 1) throw new Error("Not enough data");
         this.#leafsize = 10;
         this.#indexes = new Uint32Array(pointCount);
         for (let i = 0; i < pointCount; i++) this.#indexes[i] = i;
+
         const maxnodecount = pointCount - (this.#leafsize - 1);
         //SoA structure - Parallel Arrays
         //pivot and axis - general data
@@ -195,25 +200,25 @@ export default class KDTree {
     /**
      * This is the KDtree search function. If axis is specified, it will search solely on that axis
      * @param {Array} q Input
-     * @param {number} [axis=null] Specifies if the function should only search a specific axis
-     * @param {boolean} [includeDistance=false] Specifies if the function should include the distance
+     * @param {Object} [options] Specifies if the function should only search a specific axis
      * @returns either Point[] or (Distance, Point[])
      */
-    search(q, axis = null, includeDistance = false) {
-        if (axis && typeof axis === "number") { //if axis is a Boolean, therefore Axis was omitted
-            // do sinle axis jobs
-        } else if (!axis || typeof axis === "boolean") { //full search, with handling of includeDistance
-            let yesdistance; //check if Axis is taken by includeDistance
-            if (typeof axis === "boolean") yesdistance = axis;
-            else yesdistance = includeDistance;
-            return this.#generalSearch(q, yesdistance)
+    search(q, { axis = [], includeDistance = false }) {
+        for (let i = 0; i < q.length; i++) {
+            if (Number.isNaN(q[i])) throw new Error("Improper input");
+            if (!Number.isFinite(q[i]) || q[i] !== 0) throw new Error("Infinite");
+            if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
+        }
+        if (axis.length === 0) return this.#generalSearch(q, includeDistance);
+        else {
+            //partial axis searching
         }
     }
     #generalSearch(q, includeDistance) { //non-axis search, uses the full tree
         if (!Array.isArray(q)) throw new Error("Query is not correct type")
         if (q.length !== this.#length) throw new Error("Query is of incorrect length");
         if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
-        if (this.#data.length <= this.#leafsize) {
+        if (this.#indexes.length <= this.#leafsize) {
             console.log("too small");
             const smallresult = this.#closest(q, 0, this.#indexes.length - 1);
             return smallresult[1];
@@ -367,5 +372,32 @@ export default class KDTree {
             dist += (q[i] - scalar) * (q[i] - scalar);
         }
         return dist;
+    }
+    /**
+     * 
+     * @param {String} format the format of the return. "json", "blob", "es6-standard", "es6-typed"
+     * @returns JSON-string, Blob{}, Array[], or Float32Array[]
+     */
+    serialize(format = "json") {
+        if (format === "es6-standard") return this.#compressTreeNontyped();
+        const serial = this.#compressTreeTyped();
+        switch (format) {
+            case "json":
+                return JSON.stringify(serial);
+            case "blob":
+                return new Blob([serial], {
+                    type: "application/octet-stream"
+                });
+            case "es6-typed":
+                return serial;
+            default:
+                throw new Error(`Unsupported type ${format}`);
+        }
+    }
+    #compressTreeTyped() {
+
+    }
+    #compressTreeNontyped() {
+
     }
 }
