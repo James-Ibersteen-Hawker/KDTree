@@ -1,13 +1,31 @@
-# KD-Tree Class
-Takes an input array of N length of points of K dimension
+# JavaScript KD-Tree
+An implicit SoA structure KD-tree implemented in JavaScript.
+## Table of Contents:
+1. [Features](#features)
+2. [Limitations](#limitations)
+3. [Structure](#structure)
+4. [API](#api)
+***
 
-Optimised with typed arrays and the INT16 custom Int16Array class
+### Features:
+- xxhash-based deduplication
+- N-dimension support
+- full-axis NN search
+- specific-axis(es) NN search
+- full serialization
+- Can handle 32bit floats, non-integers, and non-positives
 
-Resettable and clearable, with compact storage and opaque access to delicate internals
-## How to use
-import {KDTree} from "./kdtree.js"
+### Limitations:
+- The nature of 32bit Floats rounds values to 7 decimal places
+- The tree is implicit, and so is harder to read
+- Depends on xxhash
+- Asynchronous creation
 
-init KDTree --> new KDTree(data[])<br>
-search KDTree --> tree.search(pt, includeDistance);<br>
-see dataset --> tree.data<br>
-clear and reset with tree.clear() and tree.newSet(newData[])
+### Structure:
+- Nodeless implicit SoA structure
+- Maintains parallel arrays preserved in serialization
+- Uses `quickselect` and `median-of-three` partitioning around the pivot
+- Core data is immutable
+***
+## API
+Initialization:
