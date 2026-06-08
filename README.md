@@ -11,8 +11,8 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript.
 
 ### Features:
 - memory-efficient implicit Structure-of-Arrays (SoA) tree structure
-- automatically deduplicates the input list with `xxhash-wasm`
-- stores data in `Float32`
+- automatically deduplicates the input list with [`xxhash-wasm`](https://github.com/cyan4973/xxhash)
+- stores data in [`Float32Array[]`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float32Array)
 - N-dimensional nearest-neighbor (NN) search
 - full-axis NN search
 - partial-axis NN search (not yet)
@@ -33,7 +33,7 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript.
 - Uses `quickselect` and `median-of-three` partitioning around the pivot
 - Core data is immutable after initialization
 - Automatic deduplication with `xxhash-wasm`
-- Cannot be initialized from constructor, must use [initFrom()](#initialize)
+- Cannot be initialized from constructor, must use [`initFrom()`](#initialize)
 ***
 #  API
 ## Table of Contents
@@ -57,51 +57,37 @@ const nearest = tree.search([5, 10]);
 import KDTree from 'js-kdtree'
 ```
 ### Initialize:
+It is asynchronous in order to load `xxhash-wasm` modules. Do not do `new KDTree(dataset)`. This will not work.
 ```js
-// It is asynchronous in order to load `xxhash-wasm` modules
 const myTree = await KDTree.initFrom(dataset)
-//do not do <new KDTree(dataset)>. This will not work.
 ```
 ### Change Set:
 ```js
 myTree.set(dataset) //new dataset
 ```
 ### Nearest-Neighbor Search: (partial-axis is not implemented yet)
+`axis = []` specifies which axes to search on (include). Omission implies all axes are included
+
+`includeDistance = true | false` selects whether to include the distance to the closest point in the result.
+
+returns: `Point[]` or `[distance, Point[]]` when `includeDistance === true`
+
 ```js
 const result = myTree.search(query, options{ axis: [], includeDistance: true | false })
-
-/* 
-
-- <axis?> specifies which axes to search on (include). Omission implies all axes are included
-
-- <includeDistance?> selects whether to include the distance to the closest point in the result. It is a Boolean value
-
-- returns:
-  Point[]
-  [distance, Point[]] when includeDistance is true
-
-*/
 ```
-### Serialization: (not implemented yet)
+### Serialization: (not decoding yet)
 ```js
-//serialization
-const serialTree = myTree.serialize(format?)
-/*
-
-- <format?> specifies output format. Omission assumes {JSON}
-- values: "json", "blob", "es6-standard", "es6-typed"
-    - "json": JSON-string
-    - "blob": Blob-format Array[]
-    - "es6-standard": standard JS Array[] format
-    - "es6-typed": standard JS Float32Array[] format
-
-*/
-
-//deserialization
-const deSerializedTree = KDTree.initFromSerial(data, format?)
-/*
-
-Format must be specified to match data. {JSON} is assumed by default
-
-*/
+const serial = myTree.serialize(format)
 ```
+`format = String` specifies output format. Omission assumes `"json"`.
+
+Values:  `"json", "blob", "es6-standard", "es6-typed"`
+
+- `"json"`: JSON-string
+- `"blob"`: Blob-format
+- `"es6-standard"`: standard JS `Array[]` format
+- `"es6-typed"`: standard JS `Float32Array[]` format
+```js
+const deSerializedTree = KDTree.initFromSerial(serial, format)
+```
+`format` must match the serialized format to decode properly.
