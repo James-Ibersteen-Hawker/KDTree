@@ -10,7 +10,7 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript.
 ***
 
 ### Features:
-- memory-efficient implicit Structure-of-Arrays (SoA) tree structure
+- memory-efficient implicit [Structure-of-Arrays](https://en.wikipedia.org/wiki/AoS_and_SoA) (SoA) tree structure
 - automatically deduplicates the input list with [`xxhash-wasm`](https://github.com/cyan4973/xxhash)
 - stores data in [`Float32Array[]`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float32Array)
 - N-dimensional nearest-neighbor (NN) search
@@ -21,7 +21,7 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript.
 ### Limitations:
 - Values are stored as Float32 (~7 decimal digits of precision)
 - Input values are constrained by `Float32` format
-- Internal indices are limited to `Uint32` values
+- Internal indices are limited to [`Uint32Array`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint32Array) values
 - The tree is implicit, and so is harder to read
 - Dependency on `xxhash-wasm`
 - Asynchronous creation
@@ -34,6 +34,8 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript.
 - Core data is immutable after initialization
 - Automatic deduplication with `xxhash-wasm`
 - Cannot be initialized from constructor, must use [`initFrom()`](#initialize)
+- Mins and Maxes are stored as `Float32Array[]`
+- Left and Right ID's are stored as [`Int32Array[]`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array)
 ***
 #  API
 ## Table of Contents
