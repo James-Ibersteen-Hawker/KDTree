@@ -145,14 +145,12 @@ export default class KDTree {
         await kdtree.set(data);
         return kdtree;
     }
-    /**
-     * Use the constructor only to deserialize. It won't work otherwise.
-     * @param {*} serialInput the input to deserialize
-     * @param {String} format the serialized format
-     */
-    constructor(serialInput, format) {
-        if (serialInput && format) this.#deserialize(serialInput, format)
+    static async initFromSerial(serialInput, format) {
+        const tree = new KDTree();
+        if (serialInput && format) await tree.setFromSerial(serialInput, format);
+        return tree;
     }
+    constructor() { } //deliberately blank
     async #init(data) {
         if (!data[0]) throw new Error("First element doesn't exist");
         this.#length = data[0]?.length;
@@ -453,13 +451,23 @@ export default class KDTree {
     #compressTreeNontyped() {
 
     }
-    #deserialize(serial, format) {
+    async setFromSerial(serial, format) {
         //next for type guards
-        console.log(serial, format)
-        if (["json", "es6-standard"].includes(format)) {
+        const type = serial.constructor.name;
+        if (
+            ["json", "es6-standard"].includes(format) && 
+            ["Array", "String"].includes(type)
+        ) {
             console.log("way1");
-        } else if (["blob", "es6-typed"].includes(format)) {
-            console.log("way2")
+        } else if (
+            ["blob", "es6-typed"].includes(format) && 
+            ["ArrayBuffer", "Blob"].includes(type)
+        ) {
+            if (format === "blob") serial = await serial.arrayBuffer();
+            this.#deconstructBuffer(serial);
         } else throw new Error(`Unsupported type ${format}`);
+    }
+    #deconstructBuffer(buffer) {
+        console.log(buffer); //gotta build this next
     }
 }
