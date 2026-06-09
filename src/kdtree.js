@@ -147,6 +147,7 @@ export default class KDTree {
     }
     static async initFromSerial(serialInput) {
         const tree = new KDTree();
+        if (!serialInput) throw new Error("Input is null or empty")
         if (serialInput) await tree.setFromSerial(serialInput);
         return tree;
     }
@@ -206,9 +207,10 @@ export default class KDTree {
      * @returns either Point[] or (Distance, Point[])
      */
     search(q, { axis = [], includeDistance = false }) {
+        if (!this.#data) throw new Error("No data to search");
         for (let i = 0; i < q.length; i++) {
             if (Number.isNaN(q[i])) throw new Error("Improper input");
-            if (!Number.isFinite(q[i]) || q[i] !== 0) throw new Error("Infinite");
+            if (!Number.isFinite(q[i]) && q[i] !== 0) throw new Error("Infinite");
             if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
         }
         if (axis.length === 0) return this.#generalSearch(q, includeDistance);
@@ -221,7 +223,6 @@ export default class KDTree {
         if (q.length !== this.#length) throw new Error("Query is of incorrect length");
         if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
         if (this.#indexes.length <= this.#leafsize) {
-            console.log("too small");
             const smallresult = this.#closest(q, 0, this.#indexes.length - 1);
             return smallresult[1];
         }
@@ -449,17 +450,35 @@ export default class KDTree {
         return buffer;
     }
     #compressTreeNontyped() {
-
+        const serial = [
+            this.#length,
+            this.#leafsize,
+            this.#data,
+            this.#indexes,
+            this.#pivots,
+            this.#mins,
+            this.#maxes,
+            this.#left,
+            this.#right,
+            this.#node_start,
+            this.#node_end
+        ];
+        return serial;
     }
     async setFromSerial(serial) {
+        if (!serial) throw new Error("No input")
         //next for type guards
         const type = serial.constructor.name;
         if (["Array", "String"].includes(type)) {
-            console.log("way1");
+            if (type === "String") serial = this.#parseJSONSerial(serial);
+            this.#deconstructSerial(serial)
         } else if (["ArrayBuffer", "Blob"].includes(type)) {
             if (type === "Blob") serial = await serial.arrayBuffer();
             this.#deconstructBuffer(serial);
         } else throw new Error(`Unsupported type ${type}`);
+    }
+    #parseJSONSerial(serial) {
+        
     }
     #deconstructBuffer(buffer) {
         let offset = 0;
@@ -499,5 +518,20 @@ export default class KDTree {
         this.#node_start = new Uint32Array(buffer, offset, startsL);
         offset += this.#node_start.byteLength
         this.#node_end = new Uint32Array(buffer, offset, endsL);
+    }
+    #deconstructSerial(serial) {
+        [
+            this.#length,
+            this.#leafsize,
+            this.#data,
+            this.#indexes,
+            this.#pivots,
+            this.#mins,
+            this.#maxes,
+            this.#left,
+            this.#right,
+            this.#node_start,
+            this.#node_end
+        ] = serial;
     }
 }
