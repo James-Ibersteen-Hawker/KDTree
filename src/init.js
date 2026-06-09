@@ -12,3 +12,5 @@ console.log(q, result);
 
 const serialTree = newTree.serialize("es6-typed");
 console.log(serialTree);
+const deserialTree = new KDTree(serialTree, "es6-typed");
+console.log(deserialTree);

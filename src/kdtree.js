@@ -134,6 +134,7 @@ export default class KDTree {
     #right; //int32
     #node_start; //uint32
     #node_end; //uint32
+    static valid_formats = Object.freeze(["json", "blob", "es6-standard", "es6-typed"])
     /**
      * @param {Array} data Array input of equal lengths
      * @returns Promise - await KDTree
@@ -144,10 +145,14 @@ export default class KDTree {
         await kdtree.set(data);
         return kdtree;
     }
-    // static async initFromSerial(serial, format) {
-
-    // }
-    constructor() { } /* intentionally blank, to force users to use static initFrom() */
+    /**
+     * Use the constructor only to deserialize. It won't work otherwise.
+     * @param {*} serialInput the input to deserialize
+     * @param {String} format the serialized format
+     */
+    constructor(serialInput, format) {
+        if (serialInput && format) this.#deserialize(serialInput, format)
+    }
     async #init(data) {
         if (!data[0]) throw new Error("First element doesn't exist");
         this.#length = data[0]?.length;
@@ -385,7 +390,7 @@ export default class KDTree {
         } else if (["blob", "es6-typed"].includes(format)) {
             const serial = this.#compressTreeTyped();
             if (format === "es6-typed") return serial;
-            else return new Blob([serial], { type: "application/octet-stream"});
+            else return new Blob([serial], { type: "application/octet-stream" });
         } else throw new Error(`Unsupported type ${format}`);
     }
     #compressTreeTyped() {
@@ -446,6 +451,15 @@ export default class KDTree {
         return buffer;
     }
     #compressTreeNontyped() {
-        
+
+    }
+    #deserialize(serial, format) {
+        //next for type guards
+        console.log(serial, format)
+        if (["json", "es6-standard"].includes(format)) {
+            console.log("way1");
+        } else if (["blob", "es6-typed"].includes(format)) {
+            console.log("way2")
+        } else throw new Error(`Unsupported type ${format}`);
     }
 }

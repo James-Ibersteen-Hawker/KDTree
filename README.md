@@ -90,7 +90,7 @@ Values:  `"json", "blob", "es6-standard", "es6-typed"`
 - `"es6-standard"`: standard JS `Array[]` format
 - `"es6-typed"`: standard JS `Float32Array[]` format
 ```js
-const deSerializedTree = KDTree.initFromSerial(serial, format)
+const deSerializedTree = new KDTree(serial, format)
 ```
 `format` must match the serialized format to decode properly.
 ***
