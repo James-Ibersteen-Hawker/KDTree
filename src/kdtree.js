@@ -145,9 +145,9 @@ export default class KDTree {
         await kdtree.set(data);
         return kdtree;
     }
-    static async initFromSerial(serialInput, format) {
+    static async initFromSerial(serialInput) {
         const tree = new KDTree();
-        if (serialInput && format) await tree.setFromSerial(serialInput, format);
+        if (serialInput) await tree.setFromSerial(serialInput);
         return tree;
     }
     constructor() { } //deliberately blank
@@ -451,23 +451,53 @@ export default class KDTree {
     #compressTreeNontyped() {
 
     }
-    async setFromSerial(serial, format) {
+    async setFromSerial(serial) {
         //next for type guards
         const type = serial.constructor.name;
-        if (
-            ["json", "es6-standard"].includes(format) && 
-            ["Array", "String"].includes(type)
-        ) {
+        if (["Array", "String"].includes(type)) {
             console.log("way1");
-        } else if (
-            ["blob", "es6-typed"].includes(format) && 
-            ["ArrayBuffer", "Blob"].includes(type)
-        ) {
-            if (format === "blob") serial = await serial.arrayBuffer();
+        } else if (["ArrayBuffer", "Blob"].includes(type)) {
+            if (type === "Blob") serial = await serial.arrayBuffer();
             this.#deconstructBuffer(serial);
-        } else throw new Error(`Unsupported type ${format}`);
+        } else throw new Error(`Unsupported type ${type}`);
     }
     #deconstructBuffer(buffer) {
-        console.log(buffer); //gotta build this next
+        let offset = 0;
+        //extract header metadata
+        const header = new Uint32Array(buffer, offset, 11);
+        offset += header.byteLength;
+        const [
+            length,
+            leafsize,
+            dataL,
+            pivotsL,
+            indexesL,
+            minsL,
+            maxesL,
+            leftsL,
+            rightsL,
+            startsL,
+            endsL
+        ] = header;
+        this.#length = length;
+        this.#leafsize = leafsize;
+        //start assembling the tree
+        this.#data = new Float32Array(buffer, offset, dataL);
+        offset += this.#data.byteLength;
+        this.#pivots = new Uint32Array(buffer, offset, pivotsL);
+        offset += this.#pivots.byteLength;
+        this.#indexes = new Uint32Array(buffer, offset, indexesL);
+        offset += this.#indexes.byteLength
+        this.#mins = new Float32Array(buffer, offset, minsL);
+        offset += this.#mins.byteLength
+        this.#maxes = new Float32Array(buffer, offset, maxesL);
+        offset += this.#maxes.byteLength
+        this.#left = new Int32Array(buffer, offset, leftsL);
+        offset += this.#left.byteLength
+        this.#right = new Int32Array(buffer, offset, rightsL);
+        offset += this.#right.byteLength
+        this.#node_start = new Uint32Array(buffer, offset, startsL);
+        offset += this.#node_start.byteLength
+        this.#node_end = new Uint32Array(buffer, offset, endsL);
     }
 }
