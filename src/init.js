@@ -6,7 +6,6 @@ import _4Dset from "./points_4d.js"
 const newTree = await KDTree.initFrom(_4Dset);
 const q = [250,15, 590, 256];
 const result = newTree.search(q, {
-    axis: [0, 2],
     includeDistance: true
 })
 console.log(q, result);

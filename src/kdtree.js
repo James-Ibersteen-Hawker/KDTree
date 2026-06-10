@@ -286,14 +286,31 @@ export default class KDTree {
      * @returns either Point[] or (Distance, Point[])
      */
     search(q, { axis = [], includeDistance = false }) {
+        if (!Array.isArray(q)) throw new Error("Query is not correct type")
+        if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
         if (!this.#data) throw new Error("No data to search");
+        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
+        if (this.#indexes.length <= this.#leafsize) {
+            const smallresult = this.#closest(q, 0, this.#indexes.length - 1);
+            const final_d = smallresult[0];
+            const final_p = smallresult[1] * this.#length; //for now, incorporating the stride
+            const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
+            if (includeDistance) return [Math.sqrt(final_d), point];
+            return point;
+        }
         for (let i = 0; i < q.length; i++) {
             if (Number.isNaN(q[i])) throw new Error("Improper input");
             if (!Number.isFinite(q[i]) && q[i] !== 0) throw new Error("Infinite");
             if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
         }
-        if (axis.length === 0) return this.#generalSearch(q, includeDistance);
-        else return this.#partialSearch(q, axis, includeDistance)
+        if (axis.length > 0) this.#axismask = axisToMask(Array.from(new Set(axis)));
+        else this.#axismask = null;
+        const result = this.#search(q, 0, 0);
+        const final_d = result[0];
+        const final_p = result[1] * this.#length; //for now, incorporating the stride
+        const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
+        if (includeDistance === true) return [Math.sqrt(final_d), point];
+        return point;
     }
     /**
      * 
@@ -322,37 +339,6 @@ export default class KDTree {
             if (type === "Blob") serial = await serial.arrayBuffer();
             this.#deconstructBuffer(serial);
         } else throw new Error(`Unsupported type ${type}`);
-    }
-    // searching functions
-    #generalSearch(q, includeDistance) { //non-axis search, uses the full tree
-        if (!Array.isArray(q)) throw new Error("Query is not correct type")
-        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
-        if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
-        if (this.#indexes.length <= this.#leafsize) {
-            const smallresult = this.#closest(q, 0, this.#indexes.length - 1);
-            return smallresult[1];
-        }
-        const result = this.#search(q, 0, 0);
-        const final_d = result[0];
-        const final_p = result[1] * this.#length; //for now, incorporating the stride
-        const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
-        if (includeDistance === true) return [Math.sqrt(final_d), point];
-        return point;
-    }
-    #partialSearch(q, axes, includeDistance) {
-        for (let i = 0; i < axes.length; i++) {
-            const axis = axes[i];
-            if (Number.isNaN(axis) || !Number.isFinite(axis)) throw new Error("Infinite or NaN");
-            if (!Number.isInteger(axis)) throw new Error(`${axis} must be an integer in <axes>`);
-            if (axis < 0 || axis > 31) throw new Error("Out of bounds");
-        } //check axis to clean it of problems
-        this.#axismask = axisToMask(Array.from(new Set(axes)));
-        const result = this.#runPartial(q, 0, 0); //next to build this device
-        const final_d = result[0];
-        const final_p = result[1];
-        const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
-        if (includeDistance) return [Math.sqrt(final_d), point];
-        return point;
     }
     //general functions
     /**
@@ -447,13 +433,12 @@ export default class KDTree {
         }
         return [best_d, best_p];
     }
-    #runPartial(q, nodeID = 0, axis) {
-
-    }
     #bounds_distance(q, nodeID) { //distance to max / min (whichever is appropriate)
         let dist = 0;
+        const mask = this.#axismask;
         const node_offset = nodeID * this.#length;
         for (let i = 0; i < this.#length; i++) {
+            if (mask && (mask & (1 << i)) === 0) continue;
             let d = 0;
             const min = this.#mins[node_offset + i]; //predefine to reduce lookups
             const max = this.#maxes[node_offset + i];
@@ -475,6 +460,7 @@ export default class KDTree {
         const length = this.#length;
         const indexes = this.#indexes;
         const data = this.#data;
+        const mask = this.#axismask;
         let best_d = Infinity;
         let best_p = null;
         for (let i = start; i <= end; i++) {
@@ -482,6 +468,7 @@ export default class KDTree {
             const offset = index * length;
             let dist = 0;
             for (let d = 0; d < length; d++) { //zero-allocation viewing
+                if (mask && (mask & (1 << i)) === 0) continue;
                 const delta = q[d] - data[offset + d];
                 dist += delta * delta;
                 if (dist >= best_d) break;
@@ -494,8 +481,10 @@ export default class KDTree {
         return [best_d, best_p];
     }
     #pivotDistance(q, p) {
+        const mask = this.#axismask;
         let dist = 0;
         for (let i = 0; i < this.#length; i++) {
+            if (mask && (mask & (1 << i)) === 0) continue;
             const scalar = this.#data[p + i];
             dist += (q[i] - scalar) * (q[i] - scalar);
         }
@@ -634,6 +623,5 @@ export default class KDTree {
 
 /*
 to-do list:
-- add partial-axis searching
 - k-nearest neighbors
 */
