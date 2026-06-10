@@ -69,6 +69,7 @@ const myTree = await KDTree.initFrom(dataset)
 ### Properties:
 | Property | Returns | Purpose |
 | :--------: | :-------: | :-------: |
+| `data` | `Array[]` | Returns an array of the original dataset. However, this set is post-dedupe, and is in partitioned order
 | `size` | `Number` | Returns the total number of points in the tree |
 | `leafsize` | `Number` | Returns the size cutoff of the leaf |
 | `components` | `Object{ dimension, leaflength, length, layout, storage, byteSize }` | Displays the general attributes of the KD-Tree|

@@ -6,12 +6,10 @@ import _4Dset from "./points_4d.js"
 const newTree = await KDTree.initFrom(_4Dset);
 const q = [250,15, 590, 256];
 const result = newTree.search(q, {
+    axis: [0, 2],
     includeDistance: true
 })
 console.log(q, result);
 
-const serialTree = newTree.serialize("es6-typed");
-const deserialTree = await KDTree.initFromSerial(serialTree)
-console.log(deserialTree.search(q, {includeDistance: true}))
-newTree.clear();
-console.log(newTree.components)
+// const serialTree = newTree.serialize("es6-typed");
+// const deserialTree = await KDTree.initFromSerial(serialTree)

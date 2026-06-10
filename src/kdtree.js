@@ -1,12 +1,4 @@
 "use strict";
-/*
-Plan:
-- Use Float32Arrays
-- Use contiguous storage, without a tree-based structure
-- Partition linearly instead of vertically
-- Keep the array-of-indexes approach and the flatpacked storage
-- Child bounds are in parallel arrays, similarly processed to the flatpacked storage
-*/
 import initXXHash from "xxhash-wasm";
 let xxhash = null;
 async function getHash() {
@@ -14,7 +6,6 @@ async function getHash() {
     return xxhash;
 }
 const bounds = [-340282346638528859811704183484516925440, 340282346638528859811704183484516925440]
-//add a fallback hash if xxhash is unavailable
 function swap(arr, a, b) {
     const temp = arr[a];
     arr[a] = arr[b];
@@ -71,6 +62,41 @@ function quickselect(set, start, end, i, axis, data, length) {
         else if (i < newPivotIndex) end = newPivotIndex - 1;
         else if (i > newPivotIndex) start = newPivotIndex + 1;
     }
+}
+function parseJSONSerial(serial) {
+    const [
+        length,
+        leafsize,
+        data,
+        indexes,
+        pivots,
+        mins,
+        maxes,
+        left,
+        right,
+        node_start,
+        node_end
+    ] = JSON.parse(serial);
+    return [
+        length,
+        leafsize,
+        new Float32Array(Object.values(data)),
+        new Uint32Array(Object.values(indexes)),
+        new Uint32Array(Object.values(pivots)),
+        new Float32Array(Object.values(mins)),
+        new Float32Array(Object.values(maxes)),
+        new Int32Array(Object.values(left)),
+        new Int32Array(Object.values(right)),
+        new Uint32Array(Object.values(node_start)),
+        new Uint32Array(Object.values(node_end))
+    ]
+}
+function axisToMask(axes) {
+    let mask = 0;
+    for (let i = 0; i < axes.length; i++) {
+        mask |= (1 << axes[i])
+    }
+    return mask;
 }
 /**
  * Uses xxhash to dedupe the input list
@@ -134,7 +160,7 @@ export default class KDTree {
     #right; //int32
     #node_start; //uint32
     #node_end; //uint32
-    static valid_formats = Object.freeze(["json", "blob", "es6-standard", "es6-typed"])
+    #axismask;
     /**
      * @param {Array} data Array input of equal lengths
      * @returns Promise - await KDTree
@@ -203,15 +229,15 @@ export default class KDTree {
         return this.#indexes.length;
     }
     get components() {
-        const bytelength = 
-            this.#data?.byteLength + 
-            this.#indexes?.byteLength + 
-            this.#pivots?.byteLength + 
-            this.#mins?.byteLength + 
-            this.#maxes?.byteLength  
-            this.#left?.byteLength + 
-            this.#right?.byteLength + 
-            this.#node_start?.byteLength + 
+        const bytelength =
+            this.#data?.byteLength +
+            this.#indexes?.byteLength +
+            this.#pivots?.byteLength +
+            this.#mins?.byteLength +
+            this.#maxes?.byteLength
+        this.#left?.byteLength +
+            this.#right?.byteLength +
+            this.#node_start?.byteLength +
             this.#node_end?.byteLength
         return {
             dimension: this.#length || null,
@@ -221,6 +247,17 @@ export default class KDTree {
             storage: "SoA",
             byteSize: bytelength || 0
         }
+    }
+    get data() {
+        if (!this.#data) return null;
+        const convertedIndexes = Array.from(this.#indexes);
+        return convertedIndexes.map(e => {
+            const point = new Array(this.#length);
+            for (let i = 0; i < point.length; i++) {
+                point[i] = this.#data[e + i];
+            }
+            return point;
+        });
     }
     /**
      * @param {Array} data replace the old set
@@ -256,10 +293,37 @@ export default class KDTree {
             if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
         }
         if (axis.length === 0) return this.#generalSearch(q, includeDistance);
-        else {
-            //partial axis searching
-        }
+        else return this.#partialSearch(q, axis, includeDistance)
     }
+    /**
+     * 
+     * @param {String} format the format of the return. "json", "blob", "es6-standard", "es6-typed"
+     * @returns JSON-string, Blob{}, Array[], or Float32Array[]
+     */
+    serialize(format = "json") {
+        if (["json", "es6-standard"].includes(format)) {
+            const serial = this.#compressTreeNontyped();
+            if (format === "json") return JSON.stringify(serial);
+            else return serial;
+        } else if (["blob", "es6-typed"].includes(format)) {
+            const serial = this.#compressTreeTyped();
+            if (format === "es6-typed") return serial;
+            else return new Blob([serial], { type: "application/octet-stream" });
+        } else throw new Error(`Unsupported type ${format}`);
+    }
+    async setFromSerial(serial) {
+        if (!serial) throw new Error("No input")
+        //next for type guards
+        const type = serial.constructor.name;
+        if (["Array", "String"].includes(type)) {
+            if (type === "String") serial = parseJSONSerial(serial);
+            this.#deconstructSerial(serial)
+        } else if (["ArrayBuffer", "Blob"].includes(type)) {
+            if (type === "Blob") serial = await serial.arrayBuffer();
+            this.#deconstructBuffer(serial);
+        } else throw new Error(`Unsupported type ${type}`);
+    }
+    // searching functions
     #generalSearch(q, includeDistance) { //non-axis search, uses the full tree
         if (!Array.isArray(q)) throw new Error("Query is not correct type")
         if (q.length !== this.#length) throw new Error("Query is of incorrect length");
@@ -275,6 +339,22 @@ export default class KDTree {
         if (includeDistance === true) return [Math.sqrt(final_d), point];
         return point;
     }
+    #partialSearch(q, axes, includeDistance) {
+        for (let i = 0; i < axes.length; i++) {
+            const axis = axes[i];
+            if (Number.isNaN(axis) || !Number.isFinite(axis)) throw new Error("Infinite or NaN");
+            if (!Number.isInteger(axis)) throw new Error(`${axis} must be an integer in <axes>`);
+            if (axis < 0 || axis > 31) throw new Error("Out of bounds");
+        } //check axis to clean it of problems
+        this.#axismask = axisToMask(Array.from(new Set(axes)));
+        const result = this.#runPartial(q, 0, 0); //next to build this device
+        const final_d = result[0];
+        const final_p = result[1];
+        const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
+        if (includeDistance) return [Math.sqrt(final_d), point];
+        return point;
+    }
+    //general functions
     /**
      * Assembles an implicit KDTree
      * 
@@ -367,6 +447,9 @@ export default class KDTree {
         }
         return [best_d, best_p];
     }
+    #runPartial(q, nodeID = 0, axis) {
+
+    }
     #bounds_distance(q, nodeID) { //distance to max / min (whichever is appropriate)
         let dist = 0;
         const node_offset = nodeID * this.#length;
@@ -418,22 +501,7 @@ export default class KDTree {
         }
         return dist;
     }
-    /**
-     * 
-     * @param {String} format the format of the return. "json", "blob", "es6-standard", "es6-typed"
-     * @returns JSON-string, Blob{}, Array[], or Float32Array[]
-     */
-    serialize(format = "json") {
-        if (["json", "es6-standard"].includes(format)) {
-            const serial = this.#compressTreeNontyped();
-            if (format === "json") return JSON.stringify(serial);
-            else return serial;
-        } else if (["blob", "es6-typed"].includes(format)) {
-            const serial = this.#compressTreeTyped();
-            if (format === "es6-typed") return serial;
-            else return new Blob([serial], { type: "application/octet-stream" });
-        } else throw new Error(`Unsupported type ${format}`);
-    }
+    //serialization functions
     #compressTreeTyped() {
         const length = this.#length;
         const data = this.#data;
@@ -507,46 +575,7 @@ export default class KDTree {
         ];
         return serial;
     }
-    async setFromSerial(serial) {
-        if (!serial) throw new Error("No input")
-        //next for type guards
-        const type = serial.constructor.name;
-        if (["Array", "String"].includes(type)) {
-            if (type === "String") serial = this.#parseJSONSerial(serial);
-            this.#deconstructSerial(serial)
-        } else if (["ArrayBuffer", "Blob"].includes(type)) {
-            if (type === "Blob") serial = await serial.arrayBuffer();
-            this.#deconstructBuffer(serial);
-        } else throw new Error(`Unsupported type ${type}`);
-    }
-    #parseJSONSerial(serial) {
-        const [
-            length,
-            leafsize,
-            data,
-            indexes,
-            pivots,
-            mins,
-            maxes,
-            left,
-            right,
-            node_start,
-            node_end
-        ] = JSON.parse(serial);
-        return [
-            length,
-            leafsize,
-            new Float32Array(Object.values(data)),
-            new Uint32Array(Object.values(indexes)),
-            new Uint32Array(Object.values(pivots)),
-            new Float32Array(Object.values(mins)),
-            new Float32Array(Object.values(maxes)),
-            new Int32Array(Object.values(left)),
-            new Int32Array(Object.values(right)),
-            new Uint32Array(Object.values(node_start)),
-            new Uint32Array(Object.values(node_end))
-        ]
-    }
+    //parse serialization
     #deconstructBuffer(buffer) {
         let offset = 0;
         //extract header metadata
@@ -602,3 +631,9 @@ export default class KDTree {
         ] = serial;
     }
 }
+
+/*
+to-do list:
+- add partial-axis searching
+- k-nearest neighbors
+*/
