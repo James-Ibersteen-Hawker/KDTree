@@ -1,18 +1,15 @@
 import KDTree from "./kdtree.js";
-// import d50k3d from "./datasets/50k3d.js"
-// import d50k4d from "./datasets/50k4d.js"
-// import d603d from "./datasets/603d.js"
 // import { writeFile } from 'node:fs/promises';
-import d10p from "./benchmark_sets/10p.js";
-import d100p from "./benchmark_sets/100p.js";
-import d1000p from "./benchmark_sets/1000p.js";
-import d10000p from "./benchmark_sets/10000p.js";
-import d100000p from "./benchmark_sets/100000p.js";
-import d1000000p from "./benchmark_sets/1000000p.js";
-
+// import d10000p from "./linear-benchmarks/10000p.js";
+// import d20000p from "./linear-benchmarks/20000p.js";
+// import d30000p from "./linear-benchmarks/30000p.js";
+// import d40000p from "./linear-benchmarks/40000p.js";
+// import d50000p from "./linear-benchmarks/50000p.js";
+// import d60000p from "./linear-benchmarks/60000p.js";
+// import d70000p from "./linear-benchmarks/70000p.js";
 
 // const list = [];
-// const l = 1000000;
+// const l = 70000;
 // for (let i = 0; i < l; i++) {
 //     const point = [];
 //     for (let d = 0; d < 3; d++) {
@@ -22,41 +19,45 @@ import d1000000p from "./benchmark_sets/1000000p.js";
 //     list.push(point);
 // }
 // await writeFile(
-//   `./src/benchmark_sets/${l}p.js`,
+//   `./src/linear-benchmarks/${l}p.js`,
 //   `const d${l}p = ${JSON.stringify(list)};\nexport default d${l}p;`
 // );
+
 const q = [300 * Math.E, 300.4323834, Math.PI];
 const iterations = 500;
 const benchmarks = [];
-const lists = [d10p, d100p, d1000p, d10000p, d100000p]
-for (let i = 0; i < lists.length; i++) {
-    const testList = lists[i];
-    const testOBJ = {
-        "construction (in ms)": null,
-        "search (in ms)": null,
-        size: testList.length,
-        result: null
+// const linearLists = [d10000p, d20000p, d30000p, d40000p, d50000p, d60000p, d70000p]
+// const lists = [d10p, d100p, d1000p, d10000p, d100000p]
+async function benchmark(list) {
+    for (let i = 0; i < list.length; i++) {
+        const testList = list[i];
+        const testOBJ = {
+            "construction (in ms)": null,
+            "search (in ms)": null,
+            size: testList.length,
+            result: null
+        }
+        let TestTree;
+        //construction
+        let cumulativeBuildTime = 0;
+        for (let d = 0; d < iterations; d++) {
+            const buildStart = performance.now();
+            TestTree = await KDTree.initFrom(testList);
+            const buildEnd = performance.now();
+            cumulativeBuildTime += buildEnd - buildStart;
+        }
+        testOBJ["construction (in ms)"] = cumulativeBuildTime / iterations;
+        //searching
+        let cumulativeSearchTime = 0;
+        for (let d = 0; d < iterations; d++) {
+            const searchStart = performance.now();
+            testOBJ.result = TestTree.search(q, {});
+            const searchEnd = performance.now();
+            cumulativeSearchTime += searchEnd - searchStart;
+        }
+        testOBJ["search (in ms)"] = cumulativeSearchTime / iterations;
+        benchmarks.push(testOBJ);
     }
-    let TestTree;
-    //construction
-    let cumulativeBuildTime = 0;
-    for (let d = 0; d < iterations; d++) {
-        const buildStart = performance.now();
-        TestTree = await KDTree.initFrom(testList);
-        const buildEnd = performance.now();
-        cumulativeBuildTime += buildEnd - buildStart;
-    }
-    testOBJ["construction (in ms)"] = cumulativeBuildTime / iterations;
-    //searching
-    let cumulativeSearchTime = 0;
-    for (let d = 0; d < iterations; d++) {
-        const searchStart = performance.now();
-        testOBJ.result = TestTree.search(q, {});
-        const searchEnd = performance.now();
-        cumulativeSearchTime += searchEnd - searchStart;
-    }
-    testOBJ["search (in ms)"] = cumulativeSearchTime / iterations;
-    benchmarks.push(testOBJ);
 }
-console.log(q);
-console.table(benchmarks)
+// await benchmark(linearLists);
+// console.table(benchmarks)

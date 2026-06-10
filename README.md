@@ -7,6 +7,7 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript. It 
 3. [Limitations](#limitations)
 4. [Structure](#structure)
 5. [API](#api)
+6. [Benchmarking](#benchmarking)
 ***
 
 ### Features:
@@ -46,7 +47,7 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript. It 
 3. [Initialize](#initialize)
 4. [Properties](#properties)
 5. [Change Set / Clear Set](#change-set)
-6. [Nearest-neighbor Search - Partial axis is not implemented yet](#nearest-neighbor-search-partial-axis-is-not-implemented-yet)
+6. [Nearest-neighbor Search](#nearest-neighbor-search)
 7. [Serialization](#serialization)
 ***
 ### Quickstart:
@@ -81,7 +82,7 @@ myTree.set(dataset) //new dataset
 ```js
 myTree.clear() //clears all internal data
 ```
-### Nearest-Neighbor Search: (partial-axis is not implemented yet)
+### Nearest-Neighbor Search:
 `axis = []` specifies which axes to search on (include). Omission implies all axes are included
 
 `includeDistance = true | false` selects whether to include the distance to the closest point in the result.
@@ -111,6 +112,32 @@ Values can be `"json", "blob", "es6-standard", or "es6-typed"`
 ```js
 const deSerializedTree = KDTree.initFromSerial(serial)
 ```
+***
+## Benchmarking:
+
+### Metrics against seven 3D sets: 
+`O(N)` time of construction     `O(≈1)` time of search
+
+<b>Linear set growth:</b>
+| Size | Construction (in ms) | Search (in ms) | 
+| :----: | :--------------------: | :--------------: |
+| 10,000 | 5.043691466 | 0.007543008 |
+| 20,000 | 9.261608314 | 0.003628262 |
+| 30,000 | 13.94977631 | 0.001879596 |
+| 40,000 | 20.39556221 | 0.001972118 |
+| 50,000 | 25.47883556 | 0.001766268 |
+| 60,000 | 30.18733742 | 0.002713570 |
+| 70,000 | 37.85199371 | 0.002158740 |
+
+<b>Exponential set growth:</b>
+| Size | Construction (in ms) | Search (in ms) | 
+| :----: | :--------------------: | :--------------: |
+| 10 | 0.013415766 | 0.002723270 |
+| 100 | 0.054140202 | 0.013077772 |
+| 1,000 | 0.316238202 | 0.004994876 |
+| 10,000 | 4.235251884 | 0.002001026 |
+| 100,000 | 56.929321726 | 0.002161332 |
+
 
 
 ***
