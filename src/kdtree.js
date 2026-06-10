@@ -285,7 +285,7 @@ export default class KDTree {
      * @param {Object} [options] Specifies if the function should only search a specific axis
      * @returns either Point[] or (Distance, Point[])
      */
-    search(q, { axis = [], includeDistance = false }) {
+    search(q, { axis = [], includeDistance = false } = {}) {
         if (!Array.isArray(q)) throw new Error("Query is not correct type")
         if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
         if (!this.#data) throw new Error("No data to search");
