@@ -44,9 +44,10 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript. It 
 1. [Quickstart](#quickstart)
 2. [Import](#import)
 3. [Initialize](#initialize)
-4. [Change Set](#change-set)
-5. [Nearest-neighbor Search - Partial axis is not implemented yet](#nearest-neighbor-search-partial-axis-is-not-implemented-yet)
-6. [Serialization](#serialization)
+4. [Properties](#properties)
+5. [Change Set / Clear Set](#change-set)
+6. [Nearest-neighbor Search - Partial axis is not implemented yet](#nearest-neighbor-search-partial-axis-is-not-implemented-yet)
+7. [Serialization](#serialization)
 ***
 ### Quickstart:
 ```js
@@ -65,9 +66,19 @@ It is asynchronous in order to load `xxhash-wasm` modules. Do not do `new KDTree
 ```js
 const myTree = await KDTree.initFrom(dataset)
 ```
+### Properties:
+| Property | Returns | Purpose |
+| :--------: | :-------: | :-------: |
+| `size` | `Number` | Returns the total number of points in the tree |
+| `leafsize` | `Number` | Returns the size cutoff of the leaf |
+| `components` | `Object{ dimension, leaflength, length, layout, storage, byteSize }` | Displays the general attributes of the KD-Tree|
+
 ### Change Set:
 ```js
 myTree.set(dataset) //new dataset
+```
+```js
+myTree.clear() //clears all internal data
 ```
 ### Nearest-Neighbor Search: (partial-axis is not implemented yet)
 `axis = []` specifies which axes to search on (include). Omission implies all axes are included
@@ -95,7 +106,7 @@ Values can be `"json", "blob", "es6-standard", or "es6-typed"`
 |`"es6-typed"` | A contiguous `ArrayBuffer()` of all the data | fastest zero-copy transfer, contiguous storage in memory | Hard to read and parse, does not hint at contents |
 |`"blob"` | Blob-encoded `es6-typed` | Immutable, downloadable, a single package | Hard to deal with, requires decoding, limited-use |
 
-<b>General Warning</b>: the `es6-standard` and `es6-typed` serialization outputs are both read/write access; altering them alters the tree that created them, and the tree that is created <i>from</i> them
+<b>General Warning</b>: the `es6-standard` serialization output is both read/write access; altering it alters the tree that created it, and the tree that is created <i>from</i> it
 ```js
 const deSerializedTree = KDTree.initFromSerial(serial)
 ```

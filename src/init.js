@@ -13,3 +13,5 @@ console.log(q, result);
 const serialTree = newTree.serialize("es6-typed");
 const deserialTree = await KDTree.initFromSerial(serialTree)
 console.log(deserialTree.search(q, {includeDistance: true}))
+newTree.clear();
+console.log(newTree.components)

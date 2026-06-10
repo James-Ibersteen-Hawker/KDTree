@@ -193,12 +193,54 @@ export default class KDTree {
         if (this.#data.length <= this.#leafsize) return; //not enough points to make a tree
         this.#assemble(this.#indexes, mins, maxes, 0, this.#indexes.length - 1, 0);
     }
+    set leafsize(v) {
+        this.#leafsize = v;
+    }
+    get leafsize() {
+        return this.#leafsize;
+    }
+    get size() {
+        return this.#indexes.length;
+    }
+    get components() {
+        const bytelength = 
+            this.#data?.byteLength + 
+            this.#indexes?.byteLength + 
+            this.#pivots?.byteLength + 
+            this.#mins?.byteLength + 
+            this.#maxes?.byteLength  
+            this.#left?.byteLength + 
+            this.#right?.byteLength + 
+            this.#node_start?.byteLength + 
+            this.#node_end?.byteLength
+        return {
+            dimension: this.#length || null,
+            leaflength: this.#leafsize,
+            length: this.#indexes?.length || 0,
+            layout: "implicit",
+            storage: "SoA",
+            byteSize: bytelength || 0
+        }
+    }
     /**
      * @param {Array} data replace the old set
      */
     async set(data) {
         if (!data[0] || data.length <= 1) throw new Error("Invalid Data");
         await this.#init(data);
+    }
+    clear() {
+        this.#data = null;
+        this.#pivots = null;
+        this.#indexes = null;
+        this.#maxes = null;
+        this.#mins = null;
+        this.#right = null;
+        this.#left = null;
+        this.#node_start = null;
+        this.#node_end = null;
+        this.#nodeCount = 0;
+        this.#length = null;
     }
     /**
      * This is the KDtree search function. If axis is specified, it will search solely on that axis
