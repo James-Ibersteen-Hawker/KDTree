@@ -478,7 +478,32 @@ export default class KDTree {
         } else throw new Error(`Unsupported type ${type}`);
     }
     #parseJSONSerial(serial) {
-        
+        const [
+            length,
+            leafsize,
+            data,
+            indexes,
+            pivots,
+            mins,
+            maxes,
+            left,
+            right,
+            node_start,
+            node_end
+        ] = JSON.parse(serial);
+        return [
+            length,
+            leafsize,
+            new Float32Array(Object.values(data)),
+            new Uint32Array(Object.values(indexes)),
+            new Uint32Array(Object.values(pivots)),
+            new Float32Array(Object.values(mins)),
+            new Float32Array(Object.values(maxes)),
+            new Int32Array(Object.values(left)),
+            new Int32Array(Object.values(right)),
+            new Uint32Array(Object.values(node_start)),
+            new Uint32Array(Object.values(node_end))
+        ]
     }
     #deconstructBuffer(buffer) {
         let offset = 0;

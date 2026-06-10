@@ -46,7 +46,7 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript. It 
 3. [Initialize](#initialize)
 4. [Change Set](#change-set)
 5. [Nearest-neighbor Search - Partial axis is not implemented yet](#nearest-neighbor-search-partial-axis-is-not-implemented-yet)
-6. [Serialization - Not implemented yet](#serialization)
+6. [Serialization](#serialization)
 ***
 ### Quickstart:
 ```js
@@ -80,22 +80,26 @@ returns: `Point[]` or `[distance, Point[]]` when `includeDistance === true`
 const result = myTree.search(query, options{ axis: [], includeDistance: true | false })
 ```
 If the list is under the `leafsize` threshold, it will not construct a tree; It will instead just blitz the list on a search.
-### Serialization: (not decoding yet)
+### Serialization:
 ```js
 const serial = myTree.serialize(format)
 ```
 `format = String` specifies output format. Omission assumes `"json"`.
 
-Values:  `"json", "blob", "es6-standard", "es6-typed"`
+Values can be `"json", "blob", "es6-standard", or "es6-typed"`
 
-- `"json"`: JSON stringified version of es6-standard
-- `"blob"`: Blob version of es6-typed
-- `"es6-standard"`: a standard JS `Array` containing the internal `Float32Array, Uint32Array, and Int32Array` in their original forms (not converted to arrays)
-- `"es6-typed"`: An `ArrayBuffer()` contiguous format
+| Name | Format | Advantages | Disadvantages |
+| :-----: | ------ | ------- | ------------- |
+|`"es6-standard"` | `Array[]` of typed arrays of formats `Float32Array[], Uint32Array[], and Int32Array[]` | Non-converted, easier to process, the most explicit format | Large, full-allocation, not fully JS Arrays |
+|`"json"` | JSONified `es6-standard` format | JSON-encoded for string-only storage | Even heavier than `es6-standard`, string-only |
+|`"es6-typed"` | A contiguous `ArrayBuffer()` of all the data | fastest zero-copy transfer, contiguous storage in memory | Hard to read and parse, does not hint at contents |
+|`"blob"` | Blob-encoded `es6-typed` | Immutable, downloadable, a single package | Hard to deal with, requires decoding, limited-use |
+
+<b>General Warning</b>: the `es6-standard` and `es6-typed` serialization outputs are both read/write access; altering them alters the tree that created them, and the tree that is created <i>from</i> them
 ```js
 const deSerializedTree = KDTree.initFromSerial(serial)
 ```
-<b>Warning</b>: the `es6-standard` and `es6-typed` serialization outputs are both read/write access; altering them alters the tree that created them, and the tree that is created <i>from</i> them
+
 
 ***
-MIT License - 2026 James Ibersteen Hawker
+[MIT License](./LICENSE) - 2026 James Ibersteen Hawker
