@@ -54,7 +54,7 @@
 //     //tracker
 //     let best_d = Infinity;
 //     let best_p = null;
-    
+
 //     //iterative loop
 //     while (true) {
 //         //clean stack and retrieve data
@@ -85,47 +85,49 @@
 // }
 
 
-
-
-search(q, { axis = [], includeDistance = false }) {
-        if (!Array.isArray(q)) throw new Error("Query is not correct type")
-        if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
-        if (!this.#data) throw new Error("No data to search");
-        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
-        if (this.#indexes.length <= this.#leafsize) {
-            const smallresult = this.#closest(q, 0, this.#indexes.length - 1);
-            const final_d = smallresult[0];
-            const final_p = smallresult[1] * this.#length; //for now, incorporating the stride
-            const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
-            if (includeDistance) return [Math.sqrt(final_d), point];
-            return point;
-        }
-        if (axis.length > 0) this.#axismask = axisToMask(Array.from(new Set(axis)));
-        else this.#axismask = null;
-        const result = this.#search(q, 0, 0);
-        const final_d = result[0];
-        const final_p = result[1] * this.#length; //for now, incorporating the stride
+search(q, { axis =[], includeDistance = false } = {}) {
+    if (!Array.isArray(q)) throw new Error("Query is not correct type")
+    if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
+    if (!this.#data) throw new Error("No data to search");
+    if (q.length !== this.#length) throw new Error("Query is of incorrect length");
+    if (this.#indexes.length <= this.#leafsize) {
+        const smallresult = this.#closest(q, 0, this.#indexes.length - 1);
+        const final_d = smallresult[0];
+        const final_p = smallresult[1] * this.#length; //for now, incorporating the stride
         const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
-        if (includeDistance === true) return [Math.sqrt(final_d), point];
+        if (includeDistance) return [Math.sqrt(final_d), point];
         return point;
     }
+    if (axis.length > 0) this.#axismask = axisToMask(Array.from(new Set(axis)));
+    else this.#axismask = null;
+    const result = this.#search(q, 0, 0);
+    const final_d = result[0];
+    const final_p = result[1] * this.#length; //for now, incorporating the stride
+    const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
+    if (includeDistance === true) return [Math.sqrt(final_d), point];
+    return point;
+}
 
-    search(q, { axes = [], includeDistance = false}) {
-       this.#validateQuery(q);
-
+search(q, { axes =[], includeDistance = false }) {
+    this.#validateQuery(q);
+    validateAxes(axes, this.#length);
+}
+#validateQuery(q) {
+    if (!Array.isArray(q)) throw new Error("Query is not an array");
+    if (!this.#indexes || !this.#data) throw new Error("Tree lacks data to search");
+    if (q.length !== this.#length) throw new Error("Query is of incorrect length");
+    for (let i = 0; i < q.length; i++) {
+        if (Number.isNaN(q[i])) throw new Error("Improper input");
+        if (!Number.isFinite(q[i]) && q[i] !== 0) throw new Error("Infinite");
+        if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
     }
-    #validateQuery(q) {
-        if (!Array.isArray(q)) throw new Error("Query is not an array");
-        if (!this.#indexes || !this.#data) throw new Error("Tree lacks data to search");
-        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
-        for (let i = 0; i < q.length; i++) {
-            if (Number.isNaN(q[i])) throw new Error("Improper input");
-            if (!Number.isFinite(q[i]) && q[i] !== 0) throw new Error("Infinite");
-            if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
-        }
+}
+function validateAxes(axes, length) {
+    axes = Array.from(new Set(axes));
+    if (axes.length > length) throw new Error("Too many axes!")
+    for (let i = 0; i < axes.length; i++) {
+        const axis = axes[i];
+        if (axis >= length || axis < 0) throw new Error("Axis out of bounds");
+        if (Number.isNaN(axis) || !Number.isFinite(axis)) throw new Error(`Axis ${axis} is not computable`);
     }
-    #validateAxes(axes) {
-        for (let i = 0; i < axes.length; i++) {
-            
-        }
-    }
+}

@@ -290,6 +290,11 @@ export default class KDTree {
         if (!this.#indexes) throw new Error(`${this.constructor.name} is not properly initialized`);
         if (!this.#data) throw new Error("No data to search");
         if (q.length !== this.#length) throw new Error("Query is of incorrect length");
+        for (let i = 0; i < q.length; i++) {
+            if (Number.isNaN(q[i])) throw new Error("Improper input");
+            if (!Number.isFinite(q[i]) && q[i] !== 0) throw new Error("Infinite");
+            if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
+        }
         if (this.#indexes.length <= this.#leafsize) {
             const smallresult = this.#closest(q, 0, this.#indexes.length - 1);
             const final_d = smallresult[0];
@@ -297,11 +302,6 @@ export default class KDTree {
             const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
             if (includeDistance) return [Math.sqrt(final_d), point];
             return point;
-        }
-        for (let i = 0; i < q.length; i++) {
-            if (Number.isNaN(q[i])) throw new Error("Improper input");
-            if (!Number.isFinite(q[i]) && q[i] !== 0) throw new Error("Infinite");
-            if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
         }
         if (axis.length > 0) this.#axismask = axisToMask(Array.from(new Set(axis)));
         else this.#axismask = null;
@@ -468,7 +468,7 @@ export default class KDTree {
             const offset = index * length;
             let dist = 0;
             for (let d = 0; d < length; d++) { //zero-allocation viewing
-                if (mask && (mask & (1 << i)) === 0) continue;
+                if (mask && (mask & (1 << d)) === 0) continue;
                 const delta = q[d] - data[offset + d];
                 dist += delta * delta;
                 if (dist >= best_d) break;
