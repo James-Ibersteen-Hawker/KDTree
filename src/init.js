@@ -4,7 +4,7 @@ const q = [300 * Math.E, 300.4323834, Math.PI];
 
 const tree = await KDTree.initFrom(d50000p);
 const result = tree.search(q, {
-    axis: [0, 2],
+    axes: [0, 1, 2],
     includeDistance: true
 });
 console.log(q, result)

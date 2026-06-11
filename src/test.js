@@ -108,9 +108,21 @@ search(q, { axis =[], includeDistance = false } = {}) {
     return point;
 }
 
-search(q, { axes =[], includeDistance = false }) {
+function search(q, { axes =[], includeDistance = false } = {}) {
+    axes = Array.from(new Set(axes));
     this.#validateQuery(q);
     validateAxes(axes, this.#length);
+    if (axes.length > 0) this.#axismask = axisToMask(axes);
+    else this.#axismask = null;
+    let result;
+    if (this.#indexes.length <= this.#leafsize) {
+        result = this.#closest(q, 0, this.#indexes.length - 1);
+    } else result = this.#search(q, 0, 0);
+    const final_d = result[0];
+    const final_p = result[1] * this.#length;
+    const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
+    if (includeDistance === true) return [Math.sqrt(final_d), point];
+    return point;
 }
 #validateQuery(q) {
     if (!Array.isArray(q)) throw new Error("Query is not an array");
@@ -120,14 +132,5 @@ search(q, { axes =[], includeDistance = false }) {
         if (Number.isNaN(q[i])) throw new Error("Improper input");
         if (!Number.isFinite(q[i]) && q[i] !== 0) throw new Error("Infinite");
         if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
-    }
-}
-function validateAxes(axes, length) {
-    axes = Array.from(new Set(axes));
-    if (axes.length > length) throw new Error("Too many axes!")
-    for (let i = 0; i < axes.length; i++) {
-        const axis = axes[i];
-        if (axis >= length || axis < 0) throw new Error("Axis out of bounds");
-        if (Number.isNaN(axis) || !Number.isFinite(axis)) throw new Error(`Axis ${axis} is not computable`);
     }
 }
