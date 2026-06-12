@@ -4,11 +4,11 @@
 import {
     getHash,
     quickselect,
-    axisToMask,
     validateAxes,
     validateQuery,
     parseJSONSerial
 } from "./helpers.js"
+const sqr = (x) => x * x;
 /**
  * 
  * @param {Array} q 
@@ -20,21 +20,20 @@ import {
  * @param {Float32Array} data
  * @returns {Array} `[distance, point]`
 */
-const sqr = (x) => x * x;
-const axischeck = (mask, i) => mask & (1 << i);
-function closest(q, start, end, axismask, length, indexes, data) {
+function closest(q, start, end, mask, length, indexes, data) {
     //brute force
     let best_d = Infinity;
     let best_p = null;
-    for (let i = start; i <= end; i++) {
+    const mlen = mask.length;
+    points: for (let i = start; i <= end; i++) {
         const index = indexes[i];
         const offset = index * length;
         let dist = 0;
-        for (let d = 0; d < length; d++) { //zero-allocation viewing
-            if (axismask && axischeck(axismask, d) === 0) continue;
-            const delta = q[d] - data[offset + d];
+        for (let d = 0; d < mlen; d++) {
+            const dim = mask[d];
+            const delta = q[dim] - data[offset + dim];
             dist += sqr(delta);
-            if (dist >= best_d) break;
+            if (dist >= best_d) continue points;
         }
         if (dist < best_d) {
             best_p = index;
@@ -42,41 +41,26 @@ function closest(q, start, end, axismask, length, indexes, data) {
         } //returning index, final point is computed last
     }
     return [best_d, best_p];
-} //optimise next
+}
 function bounds_distance(q, nodeID, mask, length, mins, maxes) { //distance to max / min (whichever is appropriate)
     let dist = 0;
     const node_offset = nodeID * length;
-    if (!mask) {
-        for (let d = 0; d < length; d++) {
-            const offset = node_offset + d;
-            const min = mins[offset];
-            const max = maxes[offset];
-            const qd = q[d]
-            if (qd < min) dist += sqr(min - qd);
-            else if (qd > max) dist += sqr(qd - max);
-        }
-        return dist;
-    }
-    for (let d = 0; d < length; d++) {
-        if ((mask & (1 << d)) === 0) continue;
-        const offset = node_offset + d;
+    for (let d = 0; d < mask.length; d++) {
+        const dim = mask[d];
+        const offset = node_offset + dim;
         const min = mins[offset];
         const max = maxes[offset];
-        const qd = q[d]
+        const qd = q[dim]
         if (qd < min) dist += sqr(min - qd);
         else if (qd > max) dist += sqr(qd - max);
     }
     return dist;
 }
-function pivotDistance(q, p, mask, length, data) {
+function pivotDistance(q, p, mask, data) {
     let dist = 0;
-    if (!mask) {
-        for (let d = 0; d < length; d++) dist += sqr(q[d] - data[p + d]);
-        return dist;
-    }
-    for (let d = 0; d < length; d++) {
-        if ((mask & (1 << d)) === 0) continue;
-        else dist += sqr(q[d] - data[p + d]);
+    for (let d = 0; d < mask.length; d++) {
+        const dim = mask[d];
+        dist += sqr(q[dim] - data[p + dim])
     }
     return dist;
 }
@@ -267,26 +251,27 @@ export default class KDTree {
      * @param {Object} [options] Specifies if the function should only search a specific axis
      * @returns either Point[] or (Distance, Point[])
      */
-    search(q, { axes = [], includeDistance = false } = {}) {
+    search(q, { axes = new Uint32Array(), includeDistance = false } = {}) {
         axes = Array.from(new Set(axes));
-        validateQuery(q, this.#length, this.#indexes, this.#data);
-        validateAxes(axes, this.#length);
-        const axismask = axes.length > 0 ? axisToMask(axes) : null;
+        const length = this.#length;
+        validateQuery(q, length, this.#indexes, this.#data);
+        validateAxes(axes, length);
+        if (axes.length === 0) Uint8Array.from({ length }, (_, i) => i);
         let result;
         if (this.#indexes.length <= this.#leafsize) {
             result = closest(
                 q,
                 0,
                 this.#indexes.length - 1,
-                axismask,
-                this.#length,
+                axes,
+                length,
                 this.#indexes,
                 this.#data
             );
-        } else result = this.#search(q, 0, 0, axismask);
+        } else result = this.#search(q, 0, 0, axes);
         const final_d = result[0];
-        const final_p = result[1] * this.#length;
-        const point = Array.from(this.#data.slice(final_p, final_p + this.#length));
+        const final_p = result[1] * length;
+        const point = Array.from(this.#data.slice(final_p, final_p + length));
         if (includeDistance === true) return [Math.sqrt(final_d), point];
         return point;
     }
@@ -376,12 +361,12 @@ export default class KDTree {
         mins[axis] = right_dry;
         return node; //return node id for the proper offset
     }
-    #search(q, nodeID = 0, axis, axismask) {
+    #search(q, nodeID = 0, axis, mask) {
         const length = this.#length; //for brevity and ease of reading
         const newAxis = (axis + 1) % length;
         const start = this.#node_start[nodeID];
         const end = this.#node_end[nodeID];
-        if (end - start < this.#leafsize) return closest(q, start, end, axismask, this.#length, this.#indexes, this.#data);
+        if (end - start < this.#leafsize) return closest(q, start, end, mask, this.#length, this.#indexes, this.#data);
         const pivot = this.#pivots[nodeID];
         const left = this.#left[nodeID];
         const right = this.#right[nodeID];
@@ -390,18 +375,18 @@ export default class KDTree {
         const go_left = q[axis] < pvt_val;
         const side = go_left ? left : right;
         const other = go_left ? right : left;
-        const result = this.#search(q, side, newAxis, axismask);
+        const result = this.#search(q, side, newAxis, mask);
         let best_d = result[0];
         let best_p = result[1];
-        const pivot_d = pivotDistance(q, pivot_pos, axismask, this.#length, this.#data)
+        const pivot_d = pivotDistance(q, pivot_pos, mask, this.#data)
         if (pivot_d < best_d) {
             best_d = pivot_d;
             best_p = pivot;
         }
         if (other === -2) return [best_d, best_p]; /* No alternate side */
-        const otherD = bounds_distance(q, other, axismask, this.#length, this.#mins, this.#maxes);
+        const otherD = bounds_distance(q, other, mask, this.#length, this.#mins, this.#maxes);
         if (otherD < best_d) {
-            const otherResult = this.#search(q, other, newAxis, axismask);
+            const otherResult = this.#search(q, other, newAxis, mask);
             const other_d = otherResult[0];
             const other_p = otherResult[1];
             if (other_d < best_d) {

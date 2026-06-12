@@ -75,16 +75,6 @@ export function quickselect(set, start, end, i, axis, data, length) {
     }
 }
 
-//axis to mask conversion
-
-export function axisToMask(axes) {
-    let mask = 0;
-    for (let i = 0; i < axes.length; i++) {
-        mask |= (1 << axes[i])
-    }
-    return mask;
-}
-
 // validation of query and of axes
 export const bounds = [-340282346638528859811704183484516925440, 340282346638528859811704183484516925440]
 
