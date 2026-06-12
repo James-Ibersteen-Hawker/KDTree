@@ -1,68 +1,8 @@
 "use strict";
-import initXXHash from "xxhash-wasm";
-let xxhash = null;
-async function getHash() {
-    if (!xxhash) xxhash = await initXXHash();
-    return xxhash;
-}
-const bounds = [-340282346638528859811704183484516925440, 340282346638528859811704183484516925440]
-function swap(arr, a, b) {
-    const temp = arr[a];
-    arr[a] = arr[b];
-    arr[b] = temp;
-}
-function partition(set, start, end, p, data, axis, length) {
-    const pivotValue = data[set[p] * length + axis]; //p is POSITION, of INDEX, in DATA
-    swap(set, p, end);
-    let storeIndex = start;
-    for (let i = start; i < end; i++) {
-        if (data[set[i] * length + axis] < pivotValue) swap(set, storeIndex++, i);
-    }
-    swap(set, storeIndex, end);
-    return storeIndex;
-}
-/**
- * Median of three pivot selection
- * @param {Uint32Array} set index set
- * @param {number} start start of selection
- * @param {number} end end of selection
- * @param {number} data list of points flatpacked
- * @param {number} axis given axis
- * @param {number} length length of stride
- * @returns best index of three[start, end, mid]
- */
-function medianOfThree(set, start, end, data, axis, length) {
-    const mid = Math.floor((start + end) / 2);
-    const a = data[set[start] * length + axis];
-    const b = data[set[mid] * length + axis];
-    const c = data[set[end] * length + axis];
-    if (a < b) {
-        if (b < c) return mid; //a < b < c
-        if (a < c) return end; //a < b <= c
-        return start;
-    } else {
-        if (a < c) return start; //b < a < c
-        if (b < c) return end; //b < a <= c
-        return mid;
-    }
-}
-/*
-Lomuto style partitioning
-Invariant: P is at given {i}
-Guarantees elements[axis] < pivot on the left and > pivot on the right
-*/
-function quickselect(set, start, end, i, axis, data, length) {
-    if (start > end) throw new RangeError("Negative region");
-    if (i < start || i > end) throw new RangeError("Out of bounds");
-    while (true) {
-        if (start === end) break;
-        const pivotIndex = medianOfThree(set, start, end, data, axis, length)
-        const newPivotIndex = partition(set, start, end, pivotIndex, data, axis, length); //determine recursion bias
-        if (i === newPivotIndex) break;
-        else if (i < newPivotIndex) end = newPivotIndex - 1;
-        else if (i > newPivotIndex) start = newPivotIndex + 1;
-    }
-}
+
+//hash loading and important global variablespo
+import { getHash, quickselect, axisToMask, validateAxes, validateQuery } from "./helpers.js"
+
 function parseJSONSerial(serial) {
     const [
         length,
@@ -91,20 +31,37 @@ function parseJSONSerial(serial) {
         new Uint32Array(Object.values(node_end))
     ]
 }
-function axisToMask(axes) {
-    let mask = 0;
-    for (let i = 0; i < axes.length; i++) {
-        mask |= (1 << axes[i])
+/**
+ * 
+ * @param {Array} q 
+ * @param {number} start 
+ * @param {number} end 
+ * @param {number} axismask 
+ * @param {number} length
+ * @param {Uint32Array} indexes
+ * @param {Float32Array} data
+ * @returns {Array} `[distance, point]`
+*/
+function closest(q, start, end, axismask, length, indexes, data) {
+    //brute force
+    let best_d = Infinity;
+    let best_p = null;
+    for (let i = start; i <= end; i++) {
+        const index = indexes[i];
+        const offset = index * length;
+        let dist = 0;
+        for (let d = 0; d < length; d++) { //zero-allocation viewing
+            if (axismask && (axismask & (1 << d)) === 0) continue;
+            const delta = q[d] - data[offset + d];
+            dist += delta * delta;
+            if (dist >= best_d) break;
+        }
+        if (dist < best_d) {
+            best_p = index;
+            best_d = dist;
+        } //returning index, final point is computed last
     }
-    return mask;
-}
-function validateAxes(axes, length) {
-    if (axes.length > length) throw new Error("Too many axes!")
-    for (let i = 0; i < axes.length; i++) {
-        const axis = axes[i];
-        if (Number.isNaN(axis) || !Number.isFinite(axis)) throw new Error(`Axis ${axis} is not computable`);
-        if (axis >= length || axis < 0) throw new Error("Axis out of bounds");
-    }
+    return [best_d, best_p];
 }
 /**
  * Uses xxhash to dedupe the input list
@@ -155,6 +112,7 @@ async function validate(data, length) {
     }
     return final;
 }
+//the KD-Tree class structure
 export default class KDTree {
     #data; //float32
     #indexes; //uint32
@@ -294,12 +252,20 @@ export default class KDTree {
      */
     search(q, { axes = [], includeDistance = false } = {}) {
         axes = Array.from(new Set(axes));
-        this.#validateQuery(q);
+        validateQuery(q, this.#length, this.#indexes, this.#data);
         validateAxes(axes, this.#length);
         const axismask = axes.length > 0 ? axisToMask(axes) : null;
         let result;
         if (this.#indexes.length <= this.#leafsize) {
-            result = this.#closest(q, 0, this.#indexes.length - 1, axismask);
+            result = closest(
+                q,
+                0,
+                this.#indexes.length - 1,
+                axismask,
+                this.#length,
+                this.#indexes,
+                this.#data
+            );
         } else result = this.#search(q, 0, 0, axismask);
         const final_d = result[0];
         const final_p = result[1] * this.#length;
@@ -398,7 +364,7 @@ export default class KDTree {
         const newAxis = (axis + 1) % length;
         const start = this.#node_start[nodeID];
         const end = this.#node_end[nodeID];
-        if (end - start < this.#leafsize) return this.#closest(q, start, end, axismask);
+        if (end - start < this.#leafsize) return closest(q, start, end, axismask, this.#length, this.#indexes, this.#data);
         const pivot = this.#pivots[nodeID];
         const left = this.#left[nodeID];
         const right = this.#right[nodeID];
@@ -428,6 +394,16 @@ export default class KDTree {
         }
         return [best_d, best_p];
     }
+    //distance calculation functions
+    #pivotDistance(q, p, axismask) {
+        let dist = 0;
+        for (let i = 0; i < this.#length; i++) {
+            if (axismask && (axismask & (1 << i)) === 0) continue;
+            const scalar = this.#data[p + i];
+            dist += (q[i] - scalar) * (q[i] - scalar);
+        }
+        return dist;
+    }
     #bounds_distance(q, nodeID, axismask) { //distance to max / min (whichever is appropriate)
         let dist = 0;
         const node_offset = nodeID * this.#length;
@@ -440,55 +416,6 @@ export default class KDTree {
             if (qi < min) d = min - qi;
             else if (qi > max) d = qi - max;
             dist += d * d;
-        }
-        return dist;
-    }
-    #validateQuery(q) {
-        if (!Array.isArray(q)) throw new Error("Query is not an array");
-        if (!this.#indexes || !this.#data) throw new Error("Tree lacks data to search");
-        if (q.length !== this.#length) throw new Error("Query is of incorrect length");
-        for (let i = 0; i < q.length; i++) {
-            if (Number.isNaN(q[i])) throw new Error("Improper input");
-            if (!Number.isFinite(q[i]) && q[i] !== 0) throw new Error("Infinite");
-            if (q[i] <= bounds[0] || q[i] >= bounds[1]) throw new Error("Out of bounds");
-        }
-    }
-    /**
-     * Finds the closest point based off of a list and query (brute force method)
-     * @param {Array} q 
-     * @param {number} start
-     * @param {number} end
-     */
-    #closest(q, start, end, axismask) {
-        //brute force
-        const length = this.#length;
-        const indexes = this.#indexes;
-        const data = this.#data;
-        let best_d = Infinity;
-        let best_p = null;
-        for (let i = start; i <= end; i++) {
-            const index = indexes[i];
-            const offset = index * length;
-            let dist = 0;
-            for (let d = 0; d < length; d++) { //zero-allocation viewing
-                if (axismask && (axismask & (1 << d)) === 0) continue;
-                const delta = q[d] - data[offset + d];
-                dist += delta * delta;
-                if (dist >= best_d) break;
-            }
-            if (dist < best_d) {
-                best_p = index;
-                best_d = dist;
-            } //returning index, final point is computed last
-        }
-        return [best_d, best_p];
-    }
-    #pivotDistance(q, p, axismask) {
-        let dist = 0;
-        for (let i = 0; i < this.#length; i++) {
-            if (axismask && (axismask & (1 << i)) === 0) continue;
-            const scalar = this.#data[p + i];
-            dist += (q[i] - scalar) * (q[i] - scalar);
         }
         return dist;
     }
@@ -622,7 +549,6 @@ export default class KDTree {
         ] = serial;
     }
 }
-
 /*
 to-do list:
 - k-nearest neighbors
