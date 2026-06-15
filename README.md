@@ -1,4 +1,4 @@
-> Status: late development, pre v.01
+> Status: v.01 pre-release
 # JavaScript KD-Tree
 A memory-efficient implicit SoA structure KD-tree implemented in JavaScript. It was built as an exercise-turned tool to learn memory efficiency, specifically in a JavaScript environment. It employs 32bit arrays throughout.
 ## Table of Contents:
@@ -87,10 +87,13 @@ myTree.clear() //clears all internal data
 
 `includeDistance = true | false` selects whether to include the distance to the closest point in the result.
 
-returns: `Point[]` or `[distance, Point[]]` when `includeDistance === true`
+if `includeDistance` is `true`, then the function will return `[distance, point]`
+if `includeDistance` is `false`, then the function will return `point`.
+
+Point is an array `[x,y,z,a,b,c...]` and Distance is a `Number`. 
 
 ```js
-const result = myTree.search(query, options{ axis: [], includeDistance: true | false })
+const result = myTree.search(query, options{ axes: [], includeDistance: true | false })
 ```
 If the list is under the `leafsize` threshold, it will not construct a tree; It will instead just blitz the list on a search.
 ### Serialization:
@@ -103,20 +106,24 @@ Values can be `"json", "blob", "es6-standard", or "es6-typed"`
 
 | Name | Format | Advantages | Disadvantages |
 | :-----: | ------ | ------- | ------------- |
-|`"es6-standard"` | `Array[]` of typed arrays of formats `Float32Array[], Uint32Array[], and Int32Array[]` | Non-converted, easier to process, the most explicit format | Large, full-allocation, not fully JS Arrays |
+|`"es6-standard"***` | `Array[]` of typed arrays of formats `Float32Array[], Uint32Array[], and Int32Array[]` | Non-converted, easier to process, the most explicit format | Large, full-allocation, not fully JS Arrays, exposes internal state to mutation (see WARNING) |
 |`"json"` | JSONified `es6-standard` format | JSON-encoded for string-only storage | Even heavier than `es6-standard`, string-only |
 |`"es6-typed"` | A contiguous `ArrayBuffer()` of all the data | fastest zero-copy transfer, contiguous storage in memory | Hard to read and parse, does not hint at contents |
 |`"blob"` | Blob-encoded `es6-typed` | Immutable, downloadable, a single package | Hard to deal with, requires decoding, limited-use |
 
-<b>General Warning</b>: the `es6-standard` serialization output is both read/write access; altering it alters the tree that created it, and the tree that is created <i>from</i> it
+<h3><b>***!!! Important Warning !!!</b></h3> The `es6-standard` serialization output is both read/write access; altering it alters the tree that created it, and the tree that is created <i>from</i> it
 ```js
 const deSerializedTree = KDTree.initFromSerial(serial)
 ```
+
 ***
+
 ## Benchmarking:
 
 ### Metrics against seven 3D sets: 
-`O(N)` time of construction     `O(≈1)` time of search
+`O(N)` time of construction
+
+Time of search hasn't found a relationship
 
 <b>Linear set growth:</b>
 | Size | Construction (in ms) | Search (in ms) | 
