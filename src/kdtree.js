@@ -185,10 +185,13 @@ export default class KDTree {
         if (this.#data.length <= this.#leafsize) return; //not enough points to make a tree
         this.#assemble(this.#indexes, mins, maxes, 0, this.#indexes.length - 1, 0);
     }
+
+    //kd-tree static properties
+
     set leafsize(v) {
         this.#leafsize = v;
     }
-    get leafsize() {
+    get leaf_threshold() {
         return this.#leafsize;
     }
     get size() {
@@ -225,6 +228,35 @@ export default class KDTree {
             return point;
         });
     }
+    get methods() {
+        const obj = {};
+        const prototype = Object.getPrototypeOf(this);
+        const funcs = Object.getOwnPropertyNames(prototype);
+        const filter = ["methods", "constructor", "setFromSerial", "properties"]
+        const filtered = funcs.filter(e => {
+            if (!filter.includes(e)) return typeof this[e] === "function";
+        })
+        filtered.forEach(prop => {
+            obj[prop] = this[prop];
+        })
+        return obj;
+    }
+    get properties() {
+        const proto = Object.getPrototypeOf(this);
+        const props = Object.getOwnPropertyNames(proto);
+        const obj = {};
+        for (const key of props) {
+            if (key === "constructor" || key === "properties") continue;
+            const descriptor = Object.getOwnPropertyDescriptor(this, key) || 
+                (proto ? Object.getOwnPropertyDescriptor(proto, key) : null);
+            if (!descriptor) continue;
+            if (typeof descriptor.get === "function") obj[key] = this[key].constructor;
+        }
+        return obj;
+    }
+
+    //end kd-tree static properties
+
     /**
      * @param {Array} data replace the old set
      */
@@ -251,12 +283,12 @@ export default class KDTree {
      * @param {Object} [options] Specifies if the function should only search a specific axis
      * @returns either Point[] or (Distance, Point[])
      */
-    search(q, { axes = new Uint32Array(), includeDistance = false } = {}) {
+    search(q, { axes = new Uint8Array(), includeDistance = false } = {}) {
         axes = Array.from(new Set(axes));
         const length = this.#length;
         validateQuery(q, length, this.#indexes, this.#data);
         validateAxes(axes, length);
-        if (axes.length === 0) Uint8Array.from({ length }, (_, i) => i);
+        if (axes.length === 0) axes = Uint8Array.from({ length }, (_, i) => i);
         let result;
         if (this.#indexes.length <= this.#leafsize) {
             result = closest(
@@ -274,6 +306,14 @@ export default class KDTree {
         const point = Array.from(this.#data.slice(final_p, final_p + length));
         if (includeDistance === true) return [Math.sqrt(final_d), point];
         return point;
+    }
+    k_search(q, k, { axes = new Uint8Array(), includeDistance = false} = {}) {
+        axes = Array.from(new Set(axes));
+        const length = this.#length;
+        validateQuery(q, length, this.#indexes, this.#data);
+        validateAxes(axes, length);
+        if (axes.length === 0) axes = Uint8Array.from({ length }, (_, i) => i);
+        let results;
     }
     /**
      * 
@@ -395,6 +435,9 @@ export default class KDTree {
             }
         }
         return [best_d, best_p];
+    }
+    #kNearestSearch() {
+
     }
     //serialization functions
     #compressTreeTyped() {
