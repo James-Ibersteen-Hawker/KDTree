@@ -1,6 +1,8 @@
 > Status: v.01 pre-release
 # JavaScript KD-Tree
 A memory-efficient implicit SoA structure KD-tree implemented in JavaScript. It was built as an exercise-turned tool to learn memory efficiency, specifically in a JavaScript environment. It employs 32bit arrays throughout.
+
+It is designed for rapid processing of large multi-dimensional memory efficient storage. It however lacks most analytics functionality, and one of four serialization methods dangerously exposes internal state, use at your own risk. 
 ## Table of Contents:
 1. [Quickstart](#quickstart)
 2. [Features](#features)
@@ -15,9 +17,9 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript. It 
 - Automatically deduplicates the input list with [`xxhash-wasm`](https://github.com/cyan4973/xxhash)
 - Stores data in [`Float32Array[]`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float32Array)
 - N-dimensional nearest-neighbor (NN) search
-- Full-axis NN search
-- Partial-axis NN search (not yet)
-- Full serialization and deserialization in multiple formats (not yet)
+- Full-axis spatial NN search
+- Partial-axis NN search
+- Full serialization and deserialization in multiple formats
 
 ### Limitations:
 - Values are stored as `Float32` (~7 decimal digits of precision)
@@ -26,7 +28,7 @@ A memory-efficient implicit SoA structure KD-tree implemented in JavaScript. It 
 - The tree is implicit, and so is harder to read
 - Dependency on `xxhash-wasm`
 - Asynchronous creation
-- Curse of dimensionality
+- Curse of dimensionality, meaning that the speed gain drops off the more dimensions there are to the data, i.e. `d > 20` dimensions for example
 
 ### Structure:
 - Nodeless implicit SoA structure
@@ -59,6 +61,11 @@ const tree = await KDTree.initFrom(dataset);
 const nearest = tree.search([5, 10]);
 ```
 ### Import:
+bash
+```bash
+npm install js-kdtree
+```
+js import
 ```js
 import KDTree from 'js-kdtree'
 ```
