@@ -156,7 +156,8 @@ export default class KDTree {
         this.#leafsize = 10;
         this.#indexes = new Uint32Array(pointCount);
         for (let i = 0; i < pointCount; i++) this.#indexes[i] = i;
-        const maxnodecount = pointCount - (this.#leafsize - 1);
+        if (this.#data.length <= this.#leafsize) return; //not enough points to make a tree
+        const maxnodecount = Math.max(pointCount - (this.#leafsize - 1), 1);
         //SoA structure - Parallel Arrays
         //pivot and axis - general data
         this.#pivots = new Uint32Array(maxnodecount);
@@ -182,7 +183,6 @@ export default class KDTree {
                 else if (val < mins[d]) mins[d] = val;
             } //index is the point, then length is the stride, and axis is the value
         }
-        if (this.#data.length <= this.#leafsize) return; //not enough points to make a tree
         this.#assemble(this.#indexes, mins, maxes, 0, this.#indexes.length - 1, 0);
     }
 
