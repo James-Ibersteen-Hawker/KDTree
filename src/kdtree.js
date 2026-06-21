@@ -307,14 +307,14 @@ export default class KDTree {
         if (includeDistance === true) return [Math.sqrt(final_d), point];
         return point;
     }
-    k_search(q, k, { axes = new Uint8Array(), includeDistance = false} = {}) {
-        axes = Array.from(new Set(axes));
-        const length = this.#length;
-        validateQuery(q, length, this.#indexes, this.#data);
-        validateAxes(axes, length);
-        if (axes.length === 0) axes = Uint8Array.from({ length }, (_, i) => i);
-        let results;
-    }
+    // k_search(q, k, { axes = new Uint8Array(), includeDistance = false} = {}) {
+    //     axes = Array.from(new Set(axes));
+    //     const length = this.#length;
+    //     validateQuery(q, length, this.#indexes, this.#data);
+    //     validateAxes(axes, length);
+    //     if (axes.length === 0) axes = Uint8Array.from({ length }, (_, i) => i);
+    //     let results;
+    // }
     /**
      * 
      * @param {String} format the format of the return. "json", "blob", "es6-standard", "es6-typed"
@@ -436,9 +436,9 @@ export default class KDTree {
         }
         return [best_d, best_p];
     }
-    #kNearestSearch() {
+    // #kNearestSearch() {
 
-    }
+    // }
     //serialization functions
     #compressTreeTyped() {
         const length = this.#length;
@@ -569,7 +569,3 @@ export default class KDTree {
         ] = serial;
     }
 }
-/*
-to-do list:
-- k-nearest neighbors
-*/
