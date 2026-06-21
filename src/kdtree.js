@@ -8,6 +8,7 @@ import {
     validateQuery,
     parseJSONSerial
 } from "./helpers.js"
+
 const sqr = (x) => x * x;
 /**
  * 
