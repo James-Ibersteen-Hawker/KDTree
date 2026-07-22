@@ -1,4 +1,4 @@
-> Status: v.01 pre-release
+> Status: v.01 released
 # JavaScript KD-Tree
 A SoA memory-efficient KD-Tree implementation in JavaScript. It is expected to be more efficient in memory than object or pointer based trees.
 
@@ -71,20 +71,16 @@ It however lacks most analytics functionality, and the `es6-standard` serializat
 ***
 ### Quickstart:
 ```js
-import KDTree from "js-kdtree";
+import KDTree from "https://cdn.jsdelivr.net/gh/James-Ibersteen-Hawker/KDTree@v3.0.0/kdtree.js";
 
 const tree = await KDTree.initFrom(dataset);
 
 const nearest = tree.search([5, 10]);
 ```
 ### Import:
-bash
-```bash
-npm install js-kdtree
-```
 js import
 ```js
-import KDTree from 'js-kdtree'
+import KDTree from 'https://cdn.jsdelivr.net/gh/James-Ibersteen-Hawker/KDTree@v3.0.0/kdtree.js'
 ```
 ### Initialize:
 It is asynchronous in order to load `xxhash-wasm` modules. Do not do `new KDTree(dataset)`. This will not work.
