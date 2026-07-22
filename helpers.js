@@ -4,8 +4,7 @@
 //in order to make the class file more clean
 
 //the xxhash used for deduplication
-
-import initXXHash from "xxhash-wasm";
+import initXXHash from "https://unpkg.com/xxhash-wasm@1.1.0/esm/xxhash-wasm.js";
 let xxhash = null;
 export async function getHash() {
     if (!xxhash) xxhash = await initXXHash();
